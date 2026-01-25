@@ -9,3 +9,6 @@ web/.temp.jpeg
 __pycache__/
 #Python
 *.pyc
+
+# Model outputs
+output/

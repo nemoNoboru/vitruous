@@ -1,111 +1,94 @@
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
   const selectDemoBtn = document.getElementById('selectDemoBtn');
-  const demoBtn = document.getElementById('demoBtn'); // Navbar button
+  const demoBtn = document.getElementById('demoBtn');
   const demoModal = document.getElementById('demoModal');
   const demoModalContent = document.getElementById('demoModalContent');
   const closeDemoModalBtn = document.getElementById('closeDemoModalBtn');
   const demoGrid = document.getElementById('demoGrid');
-  const visualizationCanvas = document.getElementById('visualizationCanvas');
   const emptyState = document.getElementById('emptyState');
   const loadingState = document.getElementById('loadingState');
+  const loadingText = document.getElementById('loadingText');
   const canvasContainer = document.getElementById('canvasContainer');
   const originalImage = document.getElementById('originalImage');
   const overlayCanvas = document.getElementById('overlayCanvas');
-
-  const imgResLabel = document.getElementById('imgRes');
-
-  // New Container for slider opacity
-  const sliderContainer = document.getElementById('xSlider').parentElement; // Hacky but works if structure is stable, or I could add ID. 
-  // actually better to just rely on input disabled state for visual style if possible, or use the parent.
-  // Let's use xSlider.parentElement for now.
-
-  // Controls
-  const controlsPanel = document.getElementById('controlsPanel');
-  const xSlider = document.getElementById('xSlider');
-  const xValue = document.getElementById('xValue');
-  const maxLabel = document.getElementById('maxX');
-  const toggleCurvesBtn = document.getElementById('toggleCurvesBtn');
-  const distanceRadios = document.getElementsByName('distanceType');
-
-  // Results
-  // Results & Dashboard
-  const minDistanceEl = document.getElementById('minDistance');
-  const maxDistanceEl = document.getElementById('maxDistance');
-  const meanDistanceEl = document.getElementById('meanDistance');
-  const stdDistanceEl = document.getElementById('stdDistance');
-  const centralDistanceEl = document.getElementById('centralDistance');
-  const peripheralDistanceEl = document.getElementById('peripheralDistance');
-
-  // New Advanced Metrics
-  const symmetryIndexEl = document.getElementById('symmetryIndex');
-  const symmetryTag = document.getElementById('symmetryTag');
-  const antRadiusEl = document.getElementById('antRadius');
-  const centralBar = document.getElementById('centralBar');
-  const peripheralBar = document.getElementById('peripheralBar');
-
-  // Graph
-  const graphCanvas = document.getElementById('thicknessGraph');
-  const fullProfileCanvas = document.getElementById('fullProfileCanvas');
-  const modalGraphCanvas = document.getElementById('modalGraphCanvas');
-  const graphPreviewCard = document.getElementById('graphPreviewCard');
-  const exportBtn = document.getElementById('exportBtn');
-
-  // Tabs & Modal
-  const tabOverview = document.getElementById('tabOverview');
-  const tabProfile = document.getElementById('tabProfile');
-  const contentOverview = document.getElementById('contentOverview');
-  const contentProfile = document.getElementById('contentProfile');
-  const graphModal = document.getElementById('graphModal');
-  const closeModalBtn = document.getElementById('closeModalBtn');
-
-  // Context
   const ctx = overlayCanvas.getContext('2d');
 
+  const imgResLabel = document.getElementById('imgRes');
+  const modelStatus = document.getElementById('modelStatus');
+  const statusHint = document.getElementById('statusHint');
+  const confidenceSlider = document.getElementById('confidenceSlider');
+  const confidenceValue = document.getElementById('confidenceValue');
+  const detectBtn = document.getElementById('detectBtn');
+  const bandCount = document.getElementById('bandCount');
+  const rowCount = document.getElementById('rowCount');
+
+  // Densitometry panel elements
+  const profileSubtitle = document.getElementById('profileSubtitle');
+  const selectedRowBadge = document.getElementById('selectedRowBadge');
+  const profileContainer = document.getElementById('profileContainer');
+  const profileEmptyState = document.getElementById('profileEmptyState');
+  const profileCanvas = document.getElementById('profileCanvas');
+  const profileCtx = profileCanvas ? profileCanvas.getContext('2d') : null;
+  const stripContainer = document.getElementById('stripContainer');
+  const stripEmptyState = document.getElementById('stripEmptyState');
+  const stripCanvas = document.getElementById('stripCanvas');
+  const stripCtx = stripCanvas ? stripCanvas.getContext('2d') : null;
+
+  // Analysis panel elements
+  const analysisPanel = document.getElementById('analysisPanel');
+  const selectedRowLabel = document.getElementById('selectedRowLabel');
+  const bandTableBody = document.getElementById('bandTableBody');
+  const exportBtn = document.getElementById('exportBtn');
+
   // State
-  let allPoints = {};
-  let allDists = {};
-  let curveUpPoints = [];
-  let curveDownPoints = [];
-  let originalWidth = 0;
-  let originalHeight = 0;
-  let showCurves = true; // Default to true as requested
+  let currentFilename = null;
+  let detectionResult = null;
+  let selectedRowId = null;
+  let analysisResult = null;
   let isImageLoaded = false;
 
-  // Stats Globals (Export Needs Access)
-  let meanVal = 0;
-  let stdVal = 0;
-  let minD = 0;
-  let maxD = 0;
-  let centralMean = 0;
-  let periphMean = 0;
-  let symIdx = 0;
-  let rad = 0;
+  // Profile drawing margins (shared with strip for alignment)
+  const PROFILE_MARGIN_LEFT = 50;
+  const PROFILE_MARGIN_RIGHT = 20;
 
-  // --- UI Helpers ---
+  // --- Initialize ---
 
-  function setLoading(isLoading) {
-    if (isLoading) {
-      loadingState.classList.remove('hidden');
-      emptyState.classList.add('hidden');
-    } else {
-      loadingState.classList.add('hidden');
+  checkModelStatus();
+  loadInitialImage();
+
+  confidenceSlider.addEventListener('input', () => {
+    confidenceValue.textContent = (confidenceSlider.value / 100).toFixed(2);
+  });
+
+  // --- Model Status ---
+
+  async function checkModelStatus() {
+    try {
+      const res = await fetch('/model-info');
+      const info = await res.json();
+      if (info.initialized) {
+        modelStatus.textContent = `Model: ${info.model_type} (${info.device})`;
+        modelStatus.classList.remove('text-ink-700/60');
+        modelStatus.classList.add('text-green-600');
+      } else {
+        modelStatus.textContent = 'Model not loaded';
+        modelStatus.classList.add('text-red-500');
+      }
+    } catch (e) {
+      modelStatus.textContent = 'Model status unknown';
     }
   }
 
-  function setControlState(enabled) {
-    if (enabled) {
-      controlsPanel.classList.remove('opacity-50', 'pointer-events-none');
-      xSlider.disabled = false;
-      sliderContainer.classList.remove('opacity-50');
+  // --- UI Helpers ---
 
-      isImageLoaded = true;
+  function setLoading(isLoading, text = 'Loading...') {
+    if (isLoading) {
+      loadingState.classList.remove('hidden');
+      loadingText.textContent = text;
+      emptyState.classList.add('hidden');
     } else {
-      controlsPanel.classList.add('opacity-50', 'pointer-events-none');
-      xSlider.disabled = true;
-      sliderContainer.classList.add('opacity-50');
-
-      isImageLoaded = false;
+      loadingState.classList.add('hidden');
     }
   }
 
@@ -114,611 +97,520 @@ document.addEventListener('DOMContentLoaded', () => {
     canvasContainer.classList.remove('hidden');
   }
 
-  // Initialize UI
-  setControlState(false);
-
-  // --- Data Processing ---
-
-  function getDistanceType() {
-    return document.querySelector('input[name="distanceType"]:checked').value;
-  }
-
-  function getCurrentPoints() {
-    const distType = getDistanceType();
-    return allPoints[distType] || [];
-  }
-
-  function getCurrentDists() {
-    const distType = getDistanceType();
-    return allDists[distType] || [];
-  }
-
-  function updateStats() {
-    const dists = getCurrentDists();
-    if (dists && dists.length > 0) {
-      // Calculate Min/Max
-      minD = Math.min(...dists);
-      maxD = Math.max(...dists);
-
-      // Calculate Mean
-      const sum = dists.reduce((a, b) => a + b, 0);
-      meanVal = sum / dists.length;
-
-      // Calculate Std Dev
-      const squareDiffs = dists.map(value => Math.pow(value - meanVal, 2));
-      const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / squareDiffs.length;
-      stdVal = Math.sqrt(avgSquareDiff);
-
-      // Calculate Central vs Peripheral
-      const w = dists.length;
-      const oneThird = Math.floor(w / 3);
-      const twoThirds = Math.floor(2 * w / 3);
-
-      const centralDists = dists.slice(oneThird, twoThirds);
-      const peripheralDists = [...dists.slice(0, oneThird), ...dists.slice(twoThirds)];
-
-      const getMean = (arr) => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
-
-      centralMean = getMean(centralDists);
-      periphMean = getMean(peripheralDists);
-
-      // --- Advanced Metrics Calculation ---
-
-      // 1. Symmetry Index (SI)
-      const halfIdx = Math.floor(w / 2);
-      const leftHalf = dists.slice(0, halfIdx);
-      const rightHalf = dists.slice(halfIdx);
-
-      const leftMean = getMean(leftHalf);
-      const rightMean = getMean(rightHalf);
-
-      symIdx = meanVal > 0 ? (Math.abs(leftMean - rightMean) / meanVal * 100) : 0;
-
-      // 2. Curvature Estimation (Approx Anterior Radius)
-      rad = 0;
-      if (curveUpPoints.length > 2) {
-        const pA = curveUpPoints[Math.floor(curveUpPoints.length * 0.25)];
-        const pB = curveUpPoints[Math.floor(curveUpPoints.length * 0.5)];
-        const pC = curveUpPoints[Math.floor(curveUpPoints.length * 0.75)];
-
-        if (pA && pB && pC) {
-          const rPx = calculateCircleRadius(pA, pB, pC);
-
-          // Estimation of Scale
-          const centIdx = Math.floor(curveUpPoints.length / 2);
-          const pUp = curveUpPoints[centIdx];
-          const pDown = curveDownPoints[centIdx];
-
-          if (pUp && pDown) {
-            const thicknessPx = Math.sqrt(Math.pow(pUp[0] - pDown[0], 2) + Math.pow(pUp[1] - pDown[1], 2));
-            const scale = centralMean / thicknessPx; // microns per pixel
-
-            const rMicrons = rPx * scale;
-            rad = rMicrons / 1000;
-          }
-        }
-      }
-
-      // --- DOM Updates ---
-      minDistanceEl.textContent = minD.toFixed(0);
-      maxDistanceEl.textContent = maxD.toFixed(0);
-      meanDistanceEl.textContent = meanVal.toFixed(0);
-      stdDistanceEl.textContent = stdVal.toFixed(1);
-
-      centralDistanceEl.textContent = centralMean.toFixed(0);
-      peripheralDistanceEl.textContent = periphMean.toFixed(0);
-
-      const maxBar = 1000;
-      centralBar.style.width = Math.min(100, (centralMean / maxBar) * 100) + '%';
-      peripheralBar.style.width = Math.min(100, (periphMean / maxBar) * 100) + '%';
-
-      symmetryIndexEl.textContent = symIdx.toFixed(1) + '%';
-      if (symIdx < 5) {
-        symmetryTag.textContent = "Normal";
-        symmetryTag.className = "px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700";
-        symmetryTag.classList.remove('hidden');
-      } else {
-        symmetryTag.textContent = "High Asymmetry";
-        symmetryTag.className = "px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700";
-        symmetryTag.classList.remove('hidden');
-      }
-
-      antRadiusEl.innerHTML = (rad > 0 && rad < 100) ? `${rad.toFixed(2)} <span class="text-sm font-normal text-slate-500">mm</span>` : '--';
-
-      // Render Graphs
-      renderGraph(graphCanvas, dists, meanVal);
-      renderGraph(fullProfileCanvas, dists, meanVal, true);
-      renderGraph(modalGraphCanvas, dists, meanVal, true);
-
-    } else {
-      // Reset Globals
-      minD = 0; maxD = 0; meanVal = 0; stdVal = 0;
-      centralMean = 0; periphMean = 0; symIdx = 0; rad = 0;
-
-      minDistanceEl.textContent = "--";
-      maxDistanceEl.textContent = "--";
-      meanDistanceEl.textContent = "--";
-      stdDistanceEl.textContent = "--";
-      centralDistanceEl.textContent = "--";
-      peripheralDistanceEl.textContent = "--";
-      symmetryIndexEl.textContent = "--";
-      antRadiusEl.textContent = "--";
-      symmetryTag.classList.add('hidden'); // Fix tag visibility on reset
-
-      if (graphCanvas) {
-        const gCtx = graphCanvas.getContext('2d');
-        gCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
-      }
-      if (fullProfileCanvas) {
-        const gCtx = fullProfileCanvas.getContext('2d');
-        gCtx.clearRect(0, 0, fullProfileCanvas.width, fullProfileCanvas.height);
-      }
-    }
-  }
-
-  // Helper: 3-Point Circle Radius
-  function calculateCircleRadius(A, B, C) {
-    const x1 = A[0], y1 = A[1];
-    const x2 = B[0], y2 = B[1];
-    const x3 = C[0], y3 = C[1];
-
-    const D = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2));
-    const Ux = ((x1 * x1 + y1 * y1) * (y2 - y3) + (x2 * x2 + y2 * y2) * (y3 - y1) + (x3 * x3 + y3 * y3) * (y1 - y2)) / D;
-    const Uy = ((x1 * x1 + y1 * y1) * (x3 - x2) + (x2 * x2 + y2 * y2) * (x1 - x3) + (x3 * x3 + y3 * y3) * (x2 - x1)) / D;
-
-    const r = Math.sqrt(Math.pow(x1 - Ux, 2) + Math.pow(y1 - Uy, 2));
-    return r;
-  }
-
-  // Helper: Generic Graph Renderer
-  function renderGraph(canvasEl, data, meanVal, showAxes = false) {
-    if (!canvasEl) return;
-
-    // Resize canvas to parent
-    const parent = canvasEl.parentElement;
-    if (parent.clientWidth === 0 || parent.clientHeight === 0) return; // Hidden
-
-    canvasEl.width = parent.clientWidth;
-    canvasEl.height = parent.clientHeight;
-
-    const w = canvasEl.width;
-    const h = canvasEl.height;
-    const gCtx = canvasEl.getContext('2d');
-
-    gCtx.clearRect(0, 0, w, h);
-
-    // Padding for axes
-    const padLeft = showAxes ? 40 : 0;
-    const padBottom = showAxes ? 20 : 0;
-
-    // Effective drawing area
-    const drawW = w - padLeft;
-    const drawH = h - padBottom;
-
-    // Scale Logic
-    const minD = Math.min(...data);
-    const maxD = Math.max(...data);
-    const range = maxD - minD || 1;
-    const padY = range * 0.2;
-
-    const yMin = Math.max(0, minD - padY);
-    const yMax = maxD + padY;
-
-    // Mapping Functions
-    const mapX = (i) => padLeft + (i / (data.length - 1)) * drawW;
-    const mapY = (val) => (h - padBottom) - ((val - yMin) / (yMax - yMin)) * drawH;
-
-    // AXES & LABELS
-    if (showAxes) {
-      gCtx.fillStyle = '#64748b';
-      gCtx.font = '10px sans-serif';
-      gCtx.textAlign = 'right';
-
-      // Y-Axis Labels (Min, Mean, Max)
-      gCtx.fillText(Math.round(maxD), padLeft - 5, mapY(maxD) + 3);
-      gCtx.fillText(Math.round(minD), padLeft - 5, mapY(minD) + 3);
-
-      // X-Axis Labels (Start/End)
-      gCtx.textAlign = 'center';
-      gCtx.fillText("0", padLeft, h - 5);
-      gCtx.fillText(data.length, w - 10, h - 5);
-
-      // Axis Lines
-      gCtx.strokeStyle = '#e2e8f0';
-      gCtx.lineWidth = 1;
-      gCtx.beginPath();
-      gCtx.moveTo(padLeft, 0); gCtx.lineTo(padLeft, h - padBottom); // Y
-      gCtx.moveTo(padLeft, h - padBottom); gCtx.lineTo(w, h - padBottom); // X
-      gCtx.stroke();
-    }
-
-    // Draw Gradient Fill
-    gCtx.beginPath();
-    gCtx.moveTo(padLeft, h - padBottom);
-    for (let i = 0; i < data.length; i++) {
-      gCtx.lineTo(mapX(i), mapY(data[i]));
-    }
-    gCtx.lineTo(w, h - padBottom);
-    gCtx.closePath();
-
-    const grad = gCtx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, 'rgba(79, 70, 229, 0.2)');
-    grad.addColorStop(1, 'rgba(79, 70, 229, 0.0)');
-    gCtx.fillStyle = grad;
-    gCtx.fill();
-
-    // Draw Line
-    gCtx.beginPath();
-    gCtx.strokeStyle = '#4f46e5';
-    gCtx.lineWidth = 2;
-    for (let i = 0; i < data.length; i++) {
-      if (i === 0) gCtx.moveTo(mapX(i), mapY(data[i]));
-      else gCtx.lineTo(mapX(i), mapY(data[i]));
-    }
-    gCtx.stroke();
-
-    // Draw Mean Line
-    const yMean = mapY(meanVal);
-    gCtx.beginPath();
-    gCtx.strokeStyle = '#94a3b8';
-    gCtx.setLineDash([4, 4]);
-    gCtx.moveTo(padLeft, yMean);
-    gCtx.lineTo(w, yMean);
-    gCtx.stroke();
-    gCtx.setLineDash([]);
-
-    // Highlight Selected Position
-    const xSelected = parseInt(xSlider.value, 10);
-    const xPos = mapX(xSelected);
-    // Clip to drawing area
-    if (xPos >= padLeft && xPos <= w) {
-      gCtx.beginPath();
-      gCtx.strokeStyle = '#ef4444';
-      gCtx.lineWidth = 1;
-      gCtx.moveTo(xPos, 0);
-      gCtx.lineTo(xPos, h - padBottom);
-      gCtx.stroke();
-    }
-  }
-
-  // --- Canvas & Drawing ---
-
-  function resizeCanvas() {
-    if (!isImageLoaded || originalWidth === 0 || originalHeight === 0) return;
-
-    // Ensure image is actually rendered
-    if (originalImage.naturalWidth === 0) return;
-
-    const rect = originalImage.getBoundingClientRect();
-    const displayedWidth = rect.width;
-    const displayedHeight = rect.height;
-
-    if (displayedWidth === 0 || displayedHeight === 0) return;
-
-    // Match canvas resolution to displayed size for correct events/drawing match
-    // Ideally match device pixel ratio for sharpness, but 1:1 CSS pixel match is simpler for now
-    overlayCanvas.width = displayedWidth;
-    overlayCanvas.height = displayedHeight;
-
-    // Update dimensions labels
-    // Calculate true display scale relative to original image pixel data
-    // originalWidth is from backend (cv2.shape[1]), naturalWidth should match it usually.
-
-    const trueScale = (displayedWidth / originalImage.naturalWidth * 100).toFixed(0);
-    document.getElementById('displayScale').textContent = `${trueScale}%`;
-  }
-
-  function getScaleFactors() {
-    // Logic: The image element has object-contain.
-    // The content (the visible image) might be smaller than the element box (rect).
-
-    const rect = originalImage.getBoundingClientRect();
-    const displayedWidth = rect.width;
-    const displayedHeight = rect.height;
-
-    const naturalW = originalImage.naturalWidth;
-    const naturalH = originalImage.naturalHeight;
-
-    if (naturalW === 0 || naturalH === 0) return { scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0 };
-
-    // Aspect Ratios
-    const infoAspect = originalWidth / originalHeight; // From backend
-    const naturalAspect = naturalW / naturalH; // From browser decoder
-    const containerAspect = displayedWidth / displayedHeight;
-
-    // Note: Backend 'originalWidth' vs 'naturalWidth'.
-    // If backend processed the image and returned dimensions, we should rely on mapping
-    // Backend Coordinates (0..originalWidth) -> Screen Coordinates.
-
-    // First, map Backend -> Natural (in case of some mismatch, though mostly 1:1)
-    const backendToNaturalX = naturalW / originalWidth;
-    const backendToNaturalY = naturalH / originalHeight;
-
-    // Next, map Natural -> Displayed Content Rect
-    // Calculate the size of the 'painted' image inside the object-contain box
-    let paintW, paintH;
-    let pOffsetX = 0, pOffsetY = 0;
-
-    if (containerAspect > naturalAspect) {
-      // Box is wider than image -> Pillarbox (bars on sides)
-      // Height is constrained
-      paintH = displayedHeight;
-      paintW = displayedHeight * naturalAspect;
-      pOffsetX = (displayedWidth - paintW) / 2;
-      pOffsetY = 0;
-    } else {
-      // Box is taller than image -> Letterbox (bars on top/bottom)
-      // Width is constrained
-      paintW = displayedWidth;
-      paintH = displayedWidth / naturalAspect;
-      pOffsetX = 0;
-      pOffsetY = (displayedHeight - paintH) / 2;
-    }
-
-    // Total Transform: Backend Coord -> Natural Coord -> Screen Coord
-    // ScreenX = (BackendX * backendToNaturalX / naturalW) * paintW + pOffsetX
-    // Simplified: (BackendX / originalWidth) * paintW + pOffsetX
-
-    const scaleX = paintW / originalWidth;
-    const scaleY = paintH / originalHeight;
-
-    ctx.resetTransform();
-    ctx.translate(pOffsetX, pOffsetY);
-    ctx.scale(scaleX, scaleY);
-
-    return {
-      scaleX,
-      scaleY,
-      offsetX: pOffsetX,
-      offsetY: pOffsetY,
-      paintW,
-      paintH
+  function loadInitialImage() {
+    emptyState.classList.add('hidden');
+    canvasContainer.classList.remove('hidden');
+    originalImage.src = '/static/initial.png';
+    currentFilename = 'initial.png';
+    originalImage.onload = () => {
+      imgResLabel.textContent = `${originalImage.naturalWidth} x ${originalImage.naturalHeight}`;
+      isImageLoaded = true;
+      detectBtn.disabled = false;
+      statusHint.textContent = 'Click "Detect Bands" to analyze';
+      resizeOverlay();
     };
   }
 
-  function getColorForDistance(val, minD, maxD) {
-    if (maxD === minD) return `hsl(240, 100%, 50%)`;
-    // Normalize 0..1
-    const t = (val - minD) / (maxD - minD);
-    // Map to Hue: 240 (Blue) -> 0 (Red)
-    const hue = 240 * (1 - t);
-    return `hsl(${hue}, 100%, 50%)`;
+  // --- Overlay Drawing ---
+
+  function resizeOverlay() {
+    if (!originalImage.naturalWidth) return;
+    const rect = originalImage.getBoundingClientRect();
+    overlayCanvas.width = rect.width;
+    overlayCanvas.height = rect.height;
   }
 
-  function drawColoredPolyline(pointsArray, distsArray, minD, maxD) {
-    if (!pointsArray || pointsArray.length === 0) return;
+  function drawDetections() {
+    if (!detectionResult || !detectionResult.rows) return;
 
-    // We draw segments. 
-    // Optimization: Draw lines segment by segment is slow in 2D Canvas if we do stroke() each time.
-    // However, for gradient effect, we typically need to change color.
-    // A better approach for many points is creating a gradient, but that matches spatial, not value.
-    // Since value maps to color, and value changes per pixel, we can draw line segments.
+    resizeOverlay();
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-    const sf = getScaleFactors();
-    ctx.lineWidth = 3 / sf.scaleX; // Thicker lines
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
+    const rect = originalImage.getBoundingClientRect();
+    const scaleX = rect.width / originalImage.naturalWidth;
+    const scaleY = rect.height / originalImage.naturalHeight;
 
-    for (let i = 0; i < pointsArray.length - 1; i++) {
-      const p1 = pointsArray[i];
-      const p2 = pointsArray[i + 1];
+    detectionResult.rows.forEach((row, rowIdx) => {
+      const isSelected = rowIdx === selectedRowId;
 
-      // Use the distance of i to color segment i -> i+1
-      const dist = distsArray[i] || 0;
-      const color = getColorForDistance(dist, minD, maxD);
+      // Draw row bounding box
+      const rowBbox = row.bbox;
+      ctx.strokeStyle = isSelected ? '#22c55e' : '#6366f1';
+      ctx.lineWidth = isSelected ? 3 : 1;
+      ctx.setLineDash(isSelected ? [] : [4, 4]);
+      ctx.strokeRect(
+        rowBbox.x1 * scaleX,
+        rowBbox.y1 * scaleY,
+        (rowBbox.x2 - rowBbox.x1) * scaleX,
+        (rowBbox.y2 - rowBbox.y1) * scaleY
+      );
 
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.moveTo(p1[0], p1[1]);
-      ctx.lineTo(p2[0], p2[1]);
-      ctx.stroke();
+      // Draw individual bands
+      row.bands.forEach((band, bandIdx) => {
+        const bbox = band.bbox;
+        const x = bbox.x1 * scaleX;
+        const y = bbox.y1 * scaleY;
+        const w = (bbox.x2 - bbox.x1) * scaleX;
+        const h = (bbox.y2 - bbox.y1) * scaleY;
+
+        ctx.strokeStyle = isSelected ? '#22c55e' : '#a5b4fc';
+        ctx.lineWidth = isSelected ? 2 : 1;
+        ctx.setLineDash([]);
+        ctx.strokeRect(x, y, w, h);
+
+        if (isSelected) {
+          ctx.fillStyle = '#22c55e';
+          ctx.font = 'bold 12px system-ui';
+          ctx.fillText(`${bandIdx + 1}`, x + 3, y - 4);
+        }
+
+        ctx.fillStyle = isSelected ? '#22c55e' : '#6366f1';
+        ctx.font = '10px system-ui';
+        const confText = (band.confidence * 100).toFixed(0) + '%';
+        ctx.fillText(confText, x + w - ctx.measureText(confText).width - 2, y + h - 3);
+      });
+
+      // Row label
+      ctx.fillStyle = isSelected ? '#22c55e' : '#6366f1';
+      ctx.font = 'bold 14px system-ui';
+      ctx.fillText(`Row ${rowIdx + 1}`, rowBbox.x1 * scaleX, rowBbox.y1 * scaleY - 8);
+    });
+  }
+
+  window.addEventListener('resize', () => {
+    setTimeout(() => {
+      resizeOverlay();
+      drawDetections();
+      if (selectedRowId !== null && analysisResult) {
+        drawProfile();
+        drawRowStrip();
+      }
+    }, 100);
+  });
+
+  // --- Click to Select Row ---
+
+  overlayCanvas.addEventListener('click', (e) => {
+    if (!detectionResult || !detectionResult.rows.length) return;
+
+    const rect = originalImage.getBoundingClientRect();
+    const canvasRect = overlayCanvas.getBoundingClientRect();
+
+    // Get click position relative to image
+    const clickX = (e.clientX - canvasRect.left) / rect.width * originalImage.naturalWidth;
+    const clickY = (e.clientY - canvasRect.top) / rect.height * originalImage.naturalHeight;
+
+    // Find which row was clicked
+    const clickedRowIdx = getClickedRow(clickX, clickY);
+    if (clickedRowIdx !== null) {
+      selectRow(clickedRowIdx);
     }
-  }
+  });
 
-  function normalizePoint(point) {
-    if (Array.isArray(point) && point.length >= 2) return [point[0], point[1]];
-    if (point && typeof point === 'object' && point.x !== undefined) return [point.x, point.y];
+  function getClickedRow(x, y) {
+    if (!detectionResult || !detectionResult.rows) return null;
+
+    for (let i = 0; i < detectionResult.rows.length; i++) {
+      const row = detectionResult.rows[i];
+      const bbox = row.bbox;
+      if (x >= bbox.x1 && x <= bbox.x2 && y >= bbox.y1 && y <= bbox.y2) {
+        return i;
+      }
+    }
     return null;
   }
 
-  function drawOverlay() {
-    if (!isImageLoaded) return;
+  // --- Detection ---
 
-    ctx.resetTransform();
-    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  async function detectBands() {
+    if (!currentFilename) return;
 
-    const sf = getScaleFactors(); // Apply transform is inside, but we need the object for un-transform logic if needed
-    // Actually getScaleFactors DOES apply ctx transform.
+    setLoading(true, 'Detecting bands...');
+    detectBtn.disabled = true;
 
-    const xSelected = parseInt(xSlider.value, 10);
-    const currentPoints = getCurrentPoints();
-    const currentDists = getCurrentDists();
+    // Reset state
+    selectedRowId = null;
+    analysisResult = null;
+    hideAnalysisUI();
 
-    // Calculate Min/Max for global coloring
-    let minD = 0, maxD = 100;
-    if (currentDists && currentDists.length > 0) {
-      minD = Math.min(...currentDists);
-      maxD = Math.max(...currentDists);
-    }
+    try {
+      const confidence = confidenceSlider.value / 100;
+      const res = await fetch('/detect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: currentFilename, confidence })
+      });
 
-    // Draw Curves
-    if (showCurves) {
-      // Curve Up (uses current distances for coloring to match the heatmap concept)
-      drawColoredPolyline(curveUpPoints, currentDists, minD, maxD);
-      // Curve Down
-      drawColoredPolyline(curveDownPoints, currentDists, minD, maxD);
-    }
+      if (!res.ok) throw new Error('Detection failed');
 
-    // Draw Selected Point / Measurement Line
-    if (currentPoints[xSelected]) {
-      const distVal = currentDists[xSelected];
-      const color = getColorForDistance(distVal, minD, maxD);
+      detectionResult = await res.json();
 
-      // Update Interface Value (if existing)
-      if (typeof currentDistanceEl !== 'undefined' && currentDistanceEl) {
-        currentDistanceEl.textContent = distVal ? distVal.toFixed(2) : '--';
+      bandCount.textContent = detectionResult.total_bands;
+      rowCount.textContent = detectionResult.total_rows;
+
+      if (detectionResult.total_rows > 0) {
+        statusHint.textContent = `Detected ${detectionResult.total_bands} bands in ${detectionResult.total_rows} rows. Click a row to analyze.`;
+        drawDetections();
+        // Auto-select first row
+        setLoading(false);
+        selectRow(0);
+      } else {
+        statusHint.textContent = 'No bands detected. Try lowering confidence threshold.';
+        drawDetections();
+        setLoading(false);
       }
 
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
+      detectBtn.disabled = false;
 
-      let p1, p2;
-      const ptData = currentPoints[xSelected];
-
-      if (Array.isArray(ptData)) {
-        p1 = normalizePoint(ptData[0]);
-        p2 = normalizePoint(ptData[1]);
-      }
-
-      if (p1 && p2) {
-        // Draw connection line
-        ctx.beginPath();
-        // Make it thicker as requested to "match heatmap size" or just be visible
-        ctx.lineWidth = 3 / sf.scaleX;
-        ctx.moveTo(p1[0], p1[1]);
-        ctx.lineTo(p2[0], p2[1]);
-        ctx.stroke();
-
-        // Draw large selected points
-        // Use fixed size in screen pixels -> divide radius by scale
-        const r = 4 / sf.scaleX;
-        ctx.beginPath();
-        ctx.arc(p1[0], p1[1], r, 0, Math.PI * 2);
-        ctx.arc(p2[0], p2[1], r, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw label
-        if (distVal !== undefined) {
-          ctx.save();
-          ctx.resetTransform(); // Draw text in screen space for sharpness
-
-          const midX_world = (p1[0] + p2[0]) / 2;
-          // Position below the bottom point (usually p2 is bottom, but let's check max y)
-          const lowerY = Math.max(p1[1], p2[1]);
-
-          const screenX = midX_world * sf.scaleX + sf.offsetX;
-          const screenY = lowerY * sf.scaleY + sf.offsetY;
-
-          // Text Style
-          ctx.font = 'bold 24px Outfit, sans-serif'; // Larger font
-          ctx.fillStyle = color; // Colored text matching line
-          ctx.textAlign = 'center';
-          ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-          ctx.shadowBlur = 4;
-
-          // Draw below
-          // CLAMP LOGIC: Ensure text doesn't go off canvas
-          const text = distVal.toFixed(2);
-          const textMetrics = ctx.measureText(text);
-          const textWidth = textMetrics.width;
-          const padding = 10;
-
-          let drawX = screenX;
-          // Clamp: Max(left_bound, Min(right_bound, x))
-          // Left bound: textWidth/2 + padding
-          // Right bound: canvasWidth - textWidth/2 - padding
-
-          const leftBound = textWidth / 2 + padding;
-          const rightBound = overlayCanvas.width - textWidth / 2 - padding;
-
-          drawX = Math.max(leftBound, Math.min(rightBound, drawX));
-
-          ctx.fillText(text, drawX, screenY + 40);
-
-          ctx.restore();
-        }
-      }
-    } else {
-      if (typeof currentDistanceEl !== 'undefined' && currentDistanceEl) {
-        currentDistanceEl.textContent = '--';
-      }
+    } catch (e) {
+      console.error(e);
+      alert('Detection failed: ' + e.message);
+      setLoading(false);
+      detectBtn.disabled = false;
     }
   }
 
-  // --- Data Loading ---
+  detectBtn.addEventListener('click', detectBands);
 
-  function loadData(data) {
+  // --- Row Selection ---
+
+  async function selectRow(rowId) {
+    selectedRowId = rowId;
+    drawDetections();
+    await analyzeRow(rowId);
+  }
+
+  async function analyzeRow(rowId) {
+    if (!currentFilename) return;
+
+    setLoading(true, 'Analyzing row...');
+
     try {
-      if (data.error) {
-        alert(data.error);
-        setLoading(false);
-        return;
-      }
+      const res = await fetch('/analyze-row', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: currentFilename, row_id: rowId })
+      });
 
-      originalWidth = data.width;
-      originalHeight = data.height;
-      curveUpPoints = data.curve_up || [];
-      curveDownPoints = data.curve_down || [];
+      if (!res.ok) throw new Error('Analysis failed');
 
-      imgResLabel.textContent = `${originalWidth} x ${originalHeight}`;
+      analysisResult = await res.json();
 
-      allPoints = {};
-      allDists = {};
+      // Update UI
+      showAnalysisUI(rowId);
+      populateBandTable();
+      drawProfile();
+      drawRowStrip();
 
-      if (data.points_by_type && data.dists_by_type) {
-        allPoints = data.points_by_type;
-        allDists = data.dists_by_type;
-      } else {
-        // Fallback for flat structure
-        allPoints.up = data.points || [];
-        allPoints.euclidean = data.points || [];
-        allDists.up = data.dists || [];
-        allDists.euclidean = data.dists || [];
-      }
+      setLoading(false);
+      statusHint.textContent = `Analyzing Row ${rowId + 1}. Click another row to switch.`;
 
-      // Config slider
-      if (xSlider) {
-        xSlider.max = originalWidth - 1;
-        xSlider.value = Math.floor(originalWidth / 2); // Start in middle
-        if (xValue) xValue.textContent = xSlider.value;
-        if (maxLabel) maxLabel.textContent = originalWidth;
-      }
-
-      // Attach onload BEFORE setting src to avoid caching race conditions
-      originalImage.onload = () => {
-        setLoading(false);
-        showImage();
-
-        // Use rAF to wait for layout to settle
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            try {
-              setControlState(true);
-              resizeCanvas();
-              updateStats();
-              drawOverlay();
-            } catch (e) {
-              console.error("Rendering Error:", e);
-              // Don't alert here to avoid spam loop, but logging helps if console open
-            }
-          });
-        });
-      };
-
-      // Set src AFTER attaching listener
-      // Add timestamp to force reload if needed (though local blob usually fine, static might cache)
-      if (data.original.startsWith('/static/')) {
-        originalImage.src = `${data.original}?t=${new Date().getTime()}`;
-      } else {
-        originalImage.src = data.original;
-      }
     } catch (e) {
-      console.error("LoadData Error:", e);
-      alert("Error loading data: " + e.message);
+      console.error(e);
+      alert('Analysis failed: ' + e.message);
       setLoading(false);
     }
   }
 
-  // --- Demo Selection Logic ---
+  function showAnalysisUI(rowId) {
+    // Densitometry panel
+    profileSubtitle.textContent = `Showing Row ${rowId + 1} profile`;
+    selectedRowBadge.textContent = `Row ${rowId + 1}`;
+    selectedRowBadge.classList.remove('hidden');
+    profileEmptyState.classList.add('hidden');
+    profileCanvas.classList.remove('hidden');
+    stripEmptyState.classList.add('hidden');
+    stripCanvas.classList.remove('hidden');
+
+    // Analysis panel with fade-in animation
+    analysisPanel.classList.remove('hidden');
+    analysisPanel.classList.add('fade-in');
+    selectedRowLabel.textContent = `Row ${rowId + 1}`;
+
+    // Add slide-up animation to profile area
+    profileCanvas.classList.add('slide-up');
+    stripCanvas.classList.add('slide-up');
+
+    // Remove animation classes after they complete (for re-triggering)
+    setTimeout(() => {
+      analysisPanel.classList.remove('fade-in');
+      profileCanvas.classList.remove('slide-up');
+      stripCanvas.classList.remove('slide-up');
+    }, 300);
+  }
+
+  function hideAnalysisUI() {
+    profileSubtitle.textContent = 'Click a row on the image to analyze';
+    selectedRowBadge.classList.add('hidden');
+    profileEmptyState.classList.remove('hidden');
+    profileCanvas.classList.add('hidden');
+    stripEmptyState.classList.remove('hidden');
+    stripCanvas.classList.add('hidden');
+    analysisPanel.classList.add('hidden');
+  }
+
+  function populateBandTable() {
+    if (!analysisResult || !analysisResult.bands) return;
+
+    bandTableBody.innerHTML = '';
+
+    analysisResult.bands.forEach((band, idx) => {
+      const intensity = band.intensity;
+      const relPercent = (intensity.relative * 100).toFixed(1);
+
+      const tr = document.createElement('tr');
+      tr.className = 'bg-white hover:bg-slate-50';
+      tr.innerHTML = `
+        <td class="px-4 py-2.5 font-medium text-slate-800">Band ${idx + 1}</td>
+        <td class="px-4 py-2.5 text-right text-slate-600 font-mono">${intensity.mean.toFixed(1)}</td>
+        <td class="px-4 py-2.5 text-right text-slate-600 font-mono">${intensity.integrated_density.toFixed(0)}</td>
+        <td class="px-4 py-2.5 text-right text-slate-600 font-mono">${intensity.background_corrected.toFixed(0)}</td>
+        <td class="px-4 py-2.5 text-right">
+          <div class="flex items-center justify-end gap-2">
+            <div class="w-20 bg-slate-200 rounded-full h-2">
+              <div class="bg-green-500 h-2 rounded-full" style="width: ${relPercent}%"></div>
+            </div>
+            <span class="text-slate-800 font-medium font-mono w-14 text-right">${relPercent}%</span>
+          </div>
+        </td>
+      `;
+      bandTableBody.appendChild(tr);
+    });
+  }
+
+  // --- Profile Graph ---
+
+  function drawProfile() {
+    if (!profileCanvas || !profileCtx || !analysisResult || !analysisResult.profile) return;
+
+    const profile = analysisResult.profile;
+    const values = profile.values;
+    const stats = profile.stats;
+
+    if (!values || values.length === 0) return;
+
+    const parent = profileContainer;
+    const dpr = window.devicePixelRatio || 1;
+    const displayW = parent.clientWidth - 24; // padding
+    const displayH = parent.clientHeight - 24;
+
+    profileCanvas.width = displayW * dpr;
+    profileCanvas.height = displayH * dpr;
+    profileCanvas.style.width = displayW + 'px';
+    profileCanvas.style.height = displayH + 'px';
+
+    profileCtx.setTransform(1, 0, 0, 1, 0, 0);
+    profileCtx.scale(dpr, dpr);
+
+    const marginTop = 20;
+    const marginBottom = 30;
+    const graphW = displayW - PROFILE_MARGIN_LEFT - PROFILE_MARGIN_RIGHT;
+    const graphH = displayH - marginTop - marginBottom;
+
+    // Background
+    profileCtx.fillStyle = '#ffffff';
+    profileCtx.fillRect(0, 0, displayW, displayH);
+
+    // Grid
+    profileCtx.strokeStyle = '#e2e8f0';
+    profileCtx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = marginTop + (i / 4) * graphH;
+      profileCtx.beginPath();
+      profileCtx.moveTo(PROFILE_MARGIN_LEFT, y);
+      profileCtx.lineTo(PROFILE_MARGIN_LEFT + graphW, y);
+      profileCtx.stroke();
+    }
+
+    // Profile line
+    const minVal = stats.min;
+    const maxVal = stats.max;
+    const range = maxVal - minVal || 1;
+
+    profileCtx.beginPath();
+    profileCtx.strokeStyle = '#2a2622'; // ink-800
+    profileCtx.lineWidth = 2;
+
+    for (let i = 0; i < values.length; i++) {
+      const x = PROFILE_MARGIN_LEFT + (i / Math.max(values.length - 1, 1)) * graphW;
+      const normalizedVal = (values[i] - minVal) / range;
+      const y = marginTop + graphH * (1 - normalizedVal);
+
+      if (i === 0) profileCtx.moveTo(x, y);
+      else profileCtx.lineTo(x, y);
+    }
+    profileCtx.stroke();
+
+    // Fill under curve
+    profileCtx.lineTo(PROFILE_MARGIN_LEFT + graphW, marginTop + graphH);
+    profileCtx.lineTo(PROFILE_MARGIN_LEFT, marginTop + graphH);
+    profileCtx.closePath();
+    const gradient = profileCtx.createLinearGradient(0, marginTop, 0, marginTop + graphH);
+    gradient.addColorStop(0, 'rgba(42, 38, 34, 0.25)'); // ink with opacity
+    gradient.addColorStop(1, 'rgba(42, 38, 34, 0.03)');
+    profileCtx.fillStyle = gradient;
+    profileCtx.fill();
+
+    // Axes
+    profileCtx.strokeStyle = '#94a3b8';
+    profileCtx.lineWidth = 1;
+    profileCtx.beginPath();
+    profileCtx.moveTo(PROFILE_MARGIN_LEFT, marginTop);
+    profileCtx.lineTo(PROFILE_MARGIN_LEFT, marginTop + graphH);
+    profileCtx.lineTo(PROFILE_MARGIN_LEFT + graphW, marginTop + graphH);
+    profileCtx.stroke();
+
+    // Labels
+    profileCtx.fillStyle = '#3d3833'; // ink-700
+    profileCtx.font = '11px system-ui';
+    profileCtx.textAlign = 'right';
+    profileCtx.fillText(maxVal.toFixed(0), PROFILE_MARGIN_LEFT - 5, marginTop + 10);
+    profileCtx.fillText(minVal.toFixed(0), PROFILE_MARGIN_LEFT - 5, marginTop + graphH);
+
+    profileCtx.textAlign = 'center';
+    profileCtx.fillText('Position (px)', PROFILE_MARGIN_LEFT + graphW / 2, marginTop + graphH + 25);
+
+    profileCtx.save();
+    profileCtx.translate(12, marginTop + graphH / 2);
+    profileCtx.rotate(-Math.PI / 2);
+    profileCtx.textAlign = 'center';
+    profileCtx.fillText('Intensity', 0, 0);
+    profileCtx.restore();
+
+    // --- Peak Annotations ---
+    // Draw band markers on profile aligned with detected bands
+    if (detectionResult && selectedRowId !== null) {
+      const row = detectionResult.rows[selectedRowId];
+      if (row && row.bands && row.bands.length > 0) {
+        const rowBbox = row.bbox;
+        const rowWidth = rowBbox.x2 - rowBbox.x1;
+
+        row.bands.forEach((band, idx) => {
+          // Calculate band X position relative to profile graph
+          const bandRelX = (band.center.x - rowBbox.x1) / rowWidth;
+          const markerX = PROFILE_MARGIN_LEFT + bandRelX * graphW;
+
+          // Dashed vertical line
+          profileCtx.strokeStyle = '#22c55e';
+          profileCtx.lineWidth = 1;
+          profileCtx.setLineDash([3, 3]);
+          profileCtx.beginPath();
+          profileCtx.moveTo(markerX, marginTop);
+          profileCtx.lineTo(markerX, marginTop + graphH);
+          profileCtx.stroke();
+          profileCtx.setLineDash([]);
+
+          // Band number label at top
+          profileCtx.fillStyle = '#22c55e';
+          profileCtx.font = 'bold 10px system-ui';
+          profileCtx.textAlign = 'center';
+          profileCtx.fillText(`${idx + 1}`, markerX, marginTop - 5);
+        });
+      }
+    }
+  }
+
+  // --- Row Strip Image ---
+
+  function drawRowStrip() {
+    if (!stripCanvas || !stripCtx || selectedRowId === null || !detectionResult) return;
+
+    const row = detectionResult.rows[selectedRowId];
+    if (!row) return;
+
+    const bbox = row.bbox;
+    const parent = stripContainer;
+    const dpr = window.devicePixelRatio || 1;
+    const displayW = parent.clientWidth;
+    const displayH = parent.clientHeight;
+
+    stripCanvas.width = displayW * dpr;
+    stripCanvas.height = displayH * dpr;
+    stripCanvas.style.width = displayW + 'px';
+    stripCanvas.style.height = displayH + 'px';
+
+    stripCtx.setTransform(1, 0, 0, 1, 0, 0);
+    stripCtx.scale(dpr, dpr);
+
+    // Background
+    stripCtx.fillStyle = '#1a1714';
+    stripCtx.fillRect(0, 0, displayW, displayH);
+
+    // Calculate drawing area aligned with profile graph
+    const drawX = PROFILE_MARGIN_LEFT;
+    const drawW = displayW - PROFILE_MARGIN_LEFT - PROFILE_MARGIN_RIGHT;
+    const drawH = displayH - 8; // small padding
+    const drawY = 4;
+
+    // Source region from original image
+    const srcX = bbox.x1;
+    const srcY = bbox.y1;
+    const srcW = bbox.x2 - bbox.x1;
+    const srcH = bbox.y2 - bbox.y1;
+
+    // Draw the cropped row
+    stripCtx.drawImage(
+      originalImage,
+      srcX, srcY, srcW, srcH,
+      drawX, drawY, drawW, drawH
+    );
+
+    // Draw band markers
+    if (row.bands && row.bands.length > 0) {
+      stripCtx.strokeStyle = '#22c55e';
+      stripCtx.lineWidth = 1;
+      stripCtx.setLineDash([2, 2]);
+
+      row.bands.forEach((band, idx) => {
+        // Calculate band position relative to row
+        const bandRelX = (band.center.x - bbox.x1) / srcW;
+        const markerX = drawX + bandRelX * drawW;
+
+        stripCtx.beginPath();
+        stripCtx.moveTo(markerX, 0);
+        stripCtx.lineTo(markerX, displayH);
+        stripCtx.stroke();
+
+        // Band number
+        stripCtx.fillStyle = '#22c55e';
+        stripCtx.font = 'bold 10px system-ui';
+        stripCtx.textAlign = 'center';
+        stripCtx.fillText(`${idx + 1}`, markerX, displayH - 2);
+      });
+    }
+  }
+
+  // --- Export ---
+
+  exportBtn.addEventListener('click', () => {
+    if (!analysisResult || !analysisResult.bands) {
+      alert('No analysis data to export');
+      return;
+    }
+
+    let csv = 'Band,Mean,Integrated Density,Background Corrected,Relative\n';
+    analysisResult.bands.forEach((band, idx) => {
+      const i = band.intensity;
+      csv += `${idx + 1},${i.mean},${i.integrated_density},${i.background_corrected},${i.relative}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `band-analysis-row${selectedRowId + 1}-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // --- Demo Modal ---
 
   function toggleDemoModal(show) {
     if (show) {
       demoModal.classList.remove('hidden');
-      // Trigger reflow
       void demoModal.offsetWidth;
       demoModal.classList.remove('opacity-0');
       demoModalContent.classList.remove('scale-95');
-
       loadDemoImages();
     } else {
       demoModal.classList.add('opacity-0');
@@ -729,64 +621,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function loadDemoImages() {
-    fetch('/demo-images')
-      .then(res => res.json())
-      .then(images => {
-        demoGrid.innerHTML = '';
-        if (images.length === 0) {
-          demoGrid.innerHTML = '<p class="col-span-full text-center text-slate-500">No demo images found.</p>';
-          return;
-        }
+  async function loadDemoImages() {
+    try {
+      const res = await fetch('/demo-images');
+      const images = await res.json();
 
-        images.forEach(filename => {
-          const div = document.createElement('div');
-          div.className = 'group relative aspect-square bg-slate-100 rounded-xl overflow-hidden cursor-pointer border-2 border-transparent hover:border-indigo-500 transition-all shadow-sm hover:shadow-md';
+      demoGrid.innerHTML = '';
+      if (images.length === 0) {
+        demoGrid.innerHTML = '<p class="col-span-full text-center text-slate-500">No demo images found.</p>';
+        return;
+      }
 
-          const img = document.createElement('img');
-          img.src = `/static/demo_images/${filename}`;
-          img.className = 'w-full h-full object-cover transition-transform duration-500 group-hover:scale-110';
+      images.forEach(filename => {
+        const div = document.createElement('div');
+        div.className = 'group relative aspect-square bg-slate-100 rounded-xl overflow-hidden cursor-pointer border-2 border-transparent hover:border-indigo-500 transition-all shadow-sm hover:shadow-md';
 
-          const overlay = document.createElement('div');
-          overlay.className = 'absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-end p-3';
+        const img = document.createElement('img');
+        img.src = `/static/demo_images/${filename}`;
+        img.className = 'w-full h-full object-cover transition-transform duration-500 group-hover:scale-110';
 
-          const label = document.createElement('span');
-          label.className = 'text-xs font-medium text-white bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0';
-          label.textContent = filename;
+        const overlay = document.createElement('div');
+        overlay.className = 'absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-end p-3';
 
-          overlay.appendChild(label);
-          div.appendChild(img);
-          div.appendChild(overlay);
+        const label = document.createElement('span');
+        label.className = 'text-xs font-medium text-white bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity';
+        label.textContent = filename;
 
-          div.onclick = () => selectDemoImage(filename);
-          demoGrid.appendChild(div);
-        });
-      })
-      .catch(err => {
-        console.error(err);
-        demoGrid.innerHTML = '<p class="col-span-full text-center text-red-500">Error loading images.</p>';
+        overlay.appendChild(label);
+        div.appendChild(img);
+        div.appendChild(overlay);
+
+        div.onclick = () => selectDemoImage(filename);
+        demoGrid.appendChild(div);
       });
+    } catch (e) {
+      console.error(e);
+      demoGrid.innerHTML = '<p class="col-span-full text-center text-red-500">Error loading images.</p>';
+    }
   }
 
   function selectDemoImage(filename) {
-    setControlState(false);
-    setLoading(true);
     toggleDemoModal(false);
+    setLoading(true, 'Loading image...');
 
-    const formData = new FormData();
-    formData.append('filename', filename);
+    // Reset state
+    detectionResult = null;
+    selectedRowId = null;
+    analysisResult = null;
+    hideAnalysisUI();
+    bandCount.textContent = '--';
+    rowCount.textContent = '--';
 
-    fetch('/', { method: 'POST', body: formData })
-      .then(res => {
-        if (!res.ok) throw new Error("Server Error: " + res.statusText);
-        return res.json();
-      })
-      .then(loadData)
-      .catch(err => {
-        console.error(err);
-        alert('Error loading demo: ' + err.message);
-        setLoading(false);
-      });
+    currentFilename = filename;
+    originalImage.src = `/static/demo_images/${filename}?t=${Date.now()}`;
+    originalImage.onload = () => {
+      imgResLabel.textContent = `${originalImage.naturalWidth} x ${originalImage.naturalHeight}`;
+      isImageLoaded = true;
+      detectBtn.disabled = false;
+      statusHint.textContent = 'Click "Detect Bands" to analyze';
+      showImage();
+      setLoading(false);
+      resizeOverlay();
+      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    };
   }
 
   // --- Event Listeners ---
@@ -795,362 +692,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (demoBtn) demoBtn.addEventListener('click', () => toggleDemoModal(true));
   if (closeDemoModalBtn) closeDemoModalBtn.addEventListener('click', () => toggleDemoModal(false));
 
-  // Close on backdrop click
   demoModal.addEventListener('click', (e) => {
     if (e.target === demoModal) toggleDemoModal(false);
   });
-
-  window.addEventListener('resize', () => { setTimeout(() => { resizeCanvas(); drawOverlay(); }, 100); });
-
-  xSlider.addEventListener('input', () => {
-    xValue.textContent = xSlider.value;
-    // Debounce/Throttle could be added if performance is an issue
-    requestAnimationFrame(drawOverlay);
-  });
-
-  exportBtn.addEventListener('click', () => {
-    if (!isImageLoaded) return;
-
-    // Create a temporary canvas with correct dimensions
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = originalImage.naturalWidth;
-    exportCanvas.height = originalImage.naturalHeight;
-    const exCtx = exportCanvas.getContext('2d');
-
-    // Draw Original Image
-    exCtx.drawImage(originalImage, 0, 0);
-
-    // Draw Overlay
-    // We need to scale our drawing context to 1:1 with natural pixels.
-    // The current drawOverlay logic relies on getScaleFactors which maps Backend -> Screen.
-    // Backend (originalWidth) -> NaturalWidth might usually be 1:1 but we handled it separately.
-
-    // Logic:
-    // P_natural = P_backend * (naturalW / originalWidth)
-
-    const scaleToNaturalX = originalImage.naturalWidth / originalWidth;
-    const scaleToNaturalY = originalImage.naturalHeight / originalHeight;
-
-    exCtx.scale(scaleToNaturalX, scaleToNaturalY);
-
-    // Reuse logic? 
-    // We can duplicate the drawing logic slightly modified for export or refactor `drawOverlay` to accept a context.
-    // For simplicity/speed, let's replicate the drawing logic here adapted for the export context.
-
-    const xSelected = parseInt(xSlider.value, 10);
-    const currentPoints = getCurrentPoints();
-    const currentDists = getCurrentDists();
-
-    let minD = 0, maxD = 100;
-    if (currentDists.length > 0) {
-      minD = Math.min(...currentDists);
-      maxD = Math.max(...currentDists);
-    }
-
-    // Helper for export coloring
-    function getExpColor(val) {
-      if (maxD === minD) return `hsl(240, 100%, 50%)`;
-      const t = (val - minD) / (maxD - minD);
-      const hue = 240 * (1 - t);
-      return `hsl(${hue}, 100%, 50%)`;
-    }
-
-    // Draw colored curves in export
-    if (showCurves) {
-      exCtx.lineWidth = 3;
-      exCtx.lineJoin = 'round';
-      exCtx.lineCap = 'round';
-
-      const drawExpPoly = (pts) => {
-        for (let i = 0; i < pts.length - 1; i++) {
-          const p1 = pts[i];
-          const p2 = pts[i + 1];
-          const dist = currentDists[i] || 0;
-          exCtx.beginPath();
-          exCtx.strokeStyle = getExpColor(dist);
-          exCtx.moveTo(p1[0], p1[1]);
-          exCtx.lineTo(p2[0], p2[1]);
-          exCtx.stroke();
-        }
-      };
-
-      drawExpPoly(curveUpPoints);
-      drawExpPoly(curveDownPoints);
-    }
-
-    // Draw Selection in export
-    if (currentPoints[xSelected]) {
-      const ptData = currentPoints[xSelected];
-      let p1, p2;
-      if (Array.isArray(ptData)) {
-        p1 = normalizePoint(ptData[0]);
-        p2 = normalizePoint(ptData[1]);
-      }
-
-      if (p1 && p2) {
-        const distVal = currentDists[xSelected];
-        const color = getExpColor(distVal);
-
-        exCtx.strokeStyle = color;
-        exCtx.fillStyle = color;
-        exCtx.lineWidth = 4;
-
-        exCtx.beginPath();
-        exCtx.moveTo(p1[0], p1[1]);
-        exCtx.lineTo(p2[0], p2[1]);
-        exCtx.stroke();
-
-        // Points
-        exCtx.beginPath();
-        exCtx.arc(p1[0], p1[1], 5, 0, Math.PI * 2);
-        exCtx.arc(p2[0], p2[1], 5, 0, Math.PI * 2);
-        exCtx.fill();
-
-        // Text
-        exCtx.save();
-        //   exCtx.resetTransform(); // No, we want it in the scene
-        // Draw Text slightly larger for high res export
-
-        const midX = (p1[0] + p2[0]) / 2;
-        const lowerY = Math.max(p1[1], p2[1]);
-
-        exCtx.font = 'bold 30px sans-serif';
-        exCtx.textAlign = 'center';
-        exCtx.fillText(distVal.toFixed(2), midX, lowerY + 50);
-        exCtx.restore();
-      }
-    }
-
-
-
-    // --- COMPACT LEGEND (Top Left) ---
-    // Make simpler and smaller
-    const pad = 20;
-    const boxW = 320;
-    const boxH = 340;
-
-    // Transparent Background
-    exCtx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    exCtx.beginPath();
-    exCtx.roundRect(pad, pad, boxW, boxH, 12);
-    exCtx.fill();
-    // Border
-    exCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-    exCtx.lineWidth = 1;
-    exCtx.stroke();
-
-    // Text Config
-    let ty = pad + 40;
-    const tx = pad + 20;
-
-    // Title
-    exCtx.textAlign = 'left';
-    exCtx.fillStyle = '#0f172a'; // Slate 900
-    exCtx.font = 'bold 22px sans-serif';
-    exCtx.fillText("OCT Analysis", tx, ty);
-
-    ty += 24;
-    exCtx.fillStyle = '#64748b'; // Slate 500
-    exCtx.font = '13px sans-serif';
-    exCtx.fillText(new Date().toLocaleString(), tx, ty);
-
-    ty += 30;
-
-    // Helper
-    const drawSection = (title) => {
-      exCtx.fillStyle = '#94a3b8'; // Slate 400
-      exCtx.font = 'bold 10px sans-serif';
-      exCtx.fillText(title.toUpperCase(), tx, ty);
-      ty += 20;
-    };
-
-    const drawRow = (label, val) => {
-      exCtx.fillStyle = '#64748b'; // Label
-      exCtx.font = '14px sans-serif';
-      exCtx.fillText(label, tx, y = ty);
-
-      exCtx.fillStyle = '#334155'; // Value
-      exCtx.font = 'bold 14px sans-serif';
-      const valW = exCtx.measureText(val).width;
-      exCtx.fillText(val, tx + boxW - 40 - valW, ty); // Right align
-      ty += 22;
-    };
-
-    // Global Metrics
-    drawSection("Global Metrics");
-    drawRow("Min Thickness", `${Math.round(minD)} µm`);
-    drawRow("Max Thickness", `${Math.round(maxD)} µm`);
-    drawRow("Mean Thickness", `${meanVal.toFixed(1)} µm`);
-    drawRow("Std Deviation", `${stdVal ? stdVal.toFixed(1) : '--'} µm`);
-
-    ty += 15;
-    // Zonal
-    drawSection("Zonal Analysis");
-    drawRow("Central (33%)", `${centralMean ? centralMean.toFixed(0) : '--'} µm`);
-    drawRow("Peripheral", `${periphMean ? periphMean.toFixed(0) : '--'} µm`);
-
-    ty += 15;
-    // Morphology
-    drawSection("Morphology");
-    drawRow("Symmetry Index", `${symIdx ? symIdx.toFixed(1) : '--'}%`);
-    drawRow("Est. Radius", `${rad ? rad.toFixed(2) : '--'} mm`);
-
-    exCtx.restore();
-
-    // --- DRAW GRAPH AT BOTTOM ---
-    // --- BOTTOM GRAPH (Compact) ---
-    const graphH = 140;
-    const graphPad = 30;
-    const graphW = exportCanvas.width - (graphPad * 2);
-    const graphY = exportCanvas.height - graphH - 30;
-
-    if (graphW > 100) {
-      exCtx.save();
-      exCtx.resetTransform();
-
-      // Background Panel
-      exCtx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-      exCtx.beginPath();
-      exCtx.roundRect(graphPad, graphY, graphW, graphH, 12);
-      exCtx.fill();
-
-      // Draw Graph inside
-      const gInnerX = graphPad + 40;
-      const gInnerY = graphY + 30;
-      const gInnerW = graphW - 60;
-      const gInnerH = graphH - 50;
-
-      // Data
-      const dists = currentDists;
-      if (dists.length > 0) {
-        const minG = Math.min(...dists);
-        const maxG = Math.max(...dists);
-
-        // Mapping functions
-        const mapX = (i) => gInnerX + (i / (dists.length - 1)) * gInnerW;
-        const range = maxG - minG || 1;
-        const mapY = (val) => (gInnerY + gInnerH) - ((val - minG) / range) * gInnerH;
-
-        // Path
-        exCtx.beginPath();
-        exCtx.strokeStyle = '#4f46e5';
-        exCtx.lineWidth = 2;
-
-        for (let i = 0; i < dists.length; i++) {
-          const px = mapX(i);
-          const py = mapY(dists[i]);
-          if (i === 0) exCtx.moveTo(px, py);
-          else exCtx.lineTo(px, py);
-        }
-        exCtx.stroke();
-
-        // LABELS for Graph
-        exCtx.fillStyle = '#64748b';
-        exCtx.font = '14px sans-serif';
-
-        // Y Axis
-        exCtx.textAlign = 'right';
-        exCtx.fillText(`${Math.round(maxG)}`, gInnerX - 5, gInnerY + 10);
-        exCtx.fillText(`${Math.round(minG)}`, gInnerX - 5, gInnerY + gInnerH);
-
-        // X Axis
-        exCtx.textAlign = 'center';
-        exCtx.fillText("Position (px)", gInnerX + gInnerW / 2, gInnerY + gInnerH + 20);
-
-        // Title
-        exCtx.fillStyle = '#1e293b';
-        exCtx.font = 'bold 16px sans-serif';
-        exCtx.textAlign = 'left';
-        exCtx.fillText("Thickness Profile", gInnerX, gInnerY - 15);
-      }
-
-      exCtx.restore();
-    }
-
-    // Download
-    const link = document.createElement('a');
-    link.download = `oct-report-${new Date().getTime()}.png`;
-    link.href = exportCanvas.toDataURL('image/png');
-    link.click();
-  });
-
-  toggleCurvesBtn.addEventListener('click', () => {
-    showCurves = !showCurves;
-    // Simple toggle switch styling
-    const thumb = toggleCurvesBtn.querySelector('span');
-    if (showCurves) {
-      toggleCurvesBtn.classList.remove('bg-slate-200');
-      toggleCurvesBtn.classList.add('bg-indigo-600');
-      thumb.classList.add('translate-x-5');
-      thumb.classList.remove('translate-x-0');
-    } else {
-      toggleCurvesBtn.classList.remove('bg-indigo-600');
-      toggleCurvesBtn.classList.add('bg-slate-200');
-      thumb.classList.remove('translate-x-5');
-      thumb.classList.add('translate-x-0');
-    }
-    drawOverlay();
-  });
-
-  distanceRadios.forEach(radio => {
-    radio.addEventListener('change', () => {
-      updateStats();
-      drawOverlay();
-    });
-  });
-
-  // --- Tabs Logic ---
-  function setActiveTab(tab) {
-    if (tab === 'overview') {
-      contentOverview.classList.remove('hidden');
-      contentProfile.classList.add('hidden');
-
-      tabOverview.classList.add('text-indigo-600', 'border-indigo-600');
-      tabOverview.classList.remove('text-slate-500', 'border-transparent');
-
-      tabProfile.classList.remove('text-indigo-600', 'border-indigo-600');
-      tabProfile.classList.add('text-slate-500', 'border-transparent');
-    } else {
-      contentOverview.classList.add('hidden');
-      contentProfile.classList.remove('hidden');
-
-      tabProfile.classList.add('text-indigo-600', 'border-indigo-600');
-      tabProfile.classList.remove('text-slate-500', 'border-transparent');
-
-      tabOverview.classList.remove('text-indigo-600', 'border-indigo-600');
-      tabOverview.classList.add('text-slate-500', 'border-transparent');
-
-      // Trigger render for profile canvas as it was hidden
-      requestAnimationFrame(updateStats);
-    }
-  }
-
-  if (tabOverview && tabProfile) {
-    tabOverview.addEventListener('click', () => setActiveTab('overview'));
-    tabProfile.addEventListener('click', () => setActiveTab('profile'));
-  }
-
-  // --- Modal Logic ---
-  if (graphPreviewCard && graphModal && closeModalBtn) {
-    graphPreviewCard.addEventListener('click', () => {
-      graphModal.classList.remove('hidden');
-      graphModal.classList.add('flex');
-      // Trigger Resize/Render
-      requestAnimationFrame(updateStats);
-    });
-
-    closeModalBtn.addEventListener('click', () => {
-      graphModal.classList.add('hidden');
-      graphModal.classList.remove('flex');
-    });
-
-    // Close on background click
-    graphModal.addEventListener('click', (e) => {
-      if (e.target === graphModal) {
-        graphModal.classList.add('hidden');
-        graphModal.classList.remove('flex');
-      }
-    });
-  }
 
 });

@@ -1,56 +1,130 @@
-import cv2
-import numpy as np
-from app.services.image_processing import get_curves
-from app.services.geometry import get_vertical_distances, get_euclidean_distances
+"""
+Orchestrator Service
 
-def analyze_oct_image(image_path):
+Coordinates band detection, row grouping, and densitometry analysis.
+"""
+
+from typing import TypedDict, Optional
+
+from PIL import Image
+
+from app.services.band_detection import detect_bands, DetectedBand
+from app.services.row_grouping import group_bands_into_rows, Row
+from app.services.densitometry import calculate_all_band_intensities, calculate_profile, BandWithIntensity, Profile
+
+
+class DetectionResult(TypedDict):
+    width: int
+    height: int
+    original: str
+    rows: list[Row]
+    total_bands: int
+    total_rows: int
+
+
+class AnalysisResult(TypedDict):
+    row_id: int
+    bands: list[BandWithIntensity]
+    profile: Profile
+
+
+# Store detection results for subsequent analyze_row calls
+_detection_cache: dict[str, list[Row]] = {}
+
+
+def detect_blot(
+    image_path: str,
+    confidence_threshold: float = 0.5,
+    y_tolerance: Optional[float] = None
+) -> DetectionResult:
     """
-    Processes an OCT image from a path and returns structured results.
-    Returns None if the image cannot be read.
+    Detect all bands in an image and group them into rows.
+
+    Args:
+        image_path: Path to the western blot image
+        confidence_threshold: Minimum confidence for band detection
+        y_tolerance: Y-coordinate tolerance for row grouping (auto if None)
+
+    Returns:
+        Detection result with rows and band information
     """
-    img = cv2.imread(image_path)
-    if img is None:
-        return None
-        
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    func_up, func_down = get_curves(gray_img, img)
-    
-    # Validate if curves were detected (simple heuristic: if it returns 0 everywhere)
-    # get_curves uses fallback lambda x: x*0.
-    # We check if the curve is flat at 0 (indicative of failure).
-    # Note: A real curve could be 0? In the context of the image, 0 is the top edge. 
-    # Generally, the cornea is not stuck at y=0.
-    
-    vertical_points, vertical_dists = get_vertical_distances(gray_img, func_down, func_up)
-    euclidean_points, euclidean_dists = get_euclidean_distances(gray_img, func_down, func_up)
-    
-    height, width = gray_img.shape
-    
-    curve_up_points = []
-    curve_down_points = []
-    
-    # Sample curves
-    for x in range(width):
-        y_up = int(func_up(x))
-        y_down = int(func_down(x))
-        curve_up_points.append([x, y_up])
-        curve_down_points.append([x, y_down])
-        
-    points_by_type = {
-        'up': vertical_points,
-        'euclidean': euclidean_points
-    }
-    
-    dists_by_type = {
-        'up': vertical_dists,
-        'euclidean': euclidean_dists
-    }
-    
+    # Get image dimensions
+    image = Image.open(image_path)
+    width, height = image.size
+
+    # Detect bands
+    bands = detect_bands(image_path, confidence_threshold)
+
+    # Group into rows
+    rows = group_bands_into_rows(bands, y_tolerance)
+
+    # Cache for analyze_row
+    _detection_cache[image_path] = rows
+
     return {
-        'points_by_type': points_by_type,
-        'dists_by_type': dists_by_type,
-        'curve_up': curve_up_points,
-        'curve_down': curve_down_points,
         'width': width,
-        'height': height
+        'height': height,
+        'original': '',  # Will be set by route
+        'rows': rows,
+        'total_bands': sum(row['band_count'] for row in rows),
+        'total_rows': len(rows),
     }
+
+
+def analyze_row(
+    image_path: str,
+    row_id: int,
+    confidence_threshold: float = 0.5
+) -> Optional[AnalysisResult]:
+    """
+    Analyze a specific row's band intensities.
+
+    Args:
+        image_path: Path to the western blot image
+        row_id: Which row to analyze (from detect_blot results)
+        confidence_threshold: Minimum confidence if re-detection needed
+
+    Returns:
+        Analysis result with intensity metrics and profile, or None if row not found
+    """
+    # Check cache first, re-detect if needed
+    if image_path not in _detection_cache:
+        detect_blot(image_path, confidence_threshold)
+
+    rows = _detection_cache.get(image_path, [])
+
+    # Find the requested row
+    target_row = None
+    for row in rows:
+        if row['row_id'] == row_id:
+            target_row = row
+            break
+
+    if target_row is None:
+        return None
+
+    # Calculate intensities for bands in this row
+    bands_with_intensity = calculate_all_band_intensities(image_path, target_row['bands'])
+
+    # Calculate profile for the entire row region
+    profile = calculate_profile(image_path, target_row['bbox'])
+
+    return {
+        'row_id': row_id,
+        'bands': bands_with_intensity,
+        'profile': profile,
+    }
+
+
+def clear_cache(image_path: Optional[str] = None) -> None:
+    """
+    Clear the detection cache.
+
+    Args:
+        image_path: Clear specific image, or all if None
+    """
+    global _detection_cache
+    if image_path is None:
+        _detection_cache = {}
+    elif image_path in _detection_cache:
+        del _detection_cache[image_path]
