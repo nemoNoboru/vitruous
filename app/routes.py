@@ -15,6 +15,23 @@ def index():
     return render_template('index.html')
 
 
+def find_image_path(filename):
+    """Find image in demo_images or uploads directory."""
+    filename = secure_filename(filename)
+    
+    # Check demo_images first
+    demo_path = os.path.join(current_app.root_path, 'static/demo_images', filename)
+    if os.path.exists(demo_path):
+        return demo_path, f"/static/demo_images/{filename}"
+    
+    # Check uploads
+    upload_path = os.path.join(current_app.root_path, 'static/uploads', filename)
+    if os.path.exists(upload_path):
+        return upload_path, f"/static/uploads/{filename}"
+    
+    return None, None
+
+
 @bp.route('/detect', methods=['POST'])
 def detect():
     """Detect bands in an image and group them into rows."""
@@ -26,17 +43,15 @@ def detect():
     if not filename:
         return jsonify({'error': 'No filename provided'}), 400
 
-    # Security check
-    filename = secure_filename(filename)
     confidence = data.get('confidence', 0.5)
-
-    filepath = os.path.join(current_app.root_path, 'static/demo_images', filename)
-    if not os.path.exists(filepath):
+    
+    filepath, web_path = find_image_path(filename)
+    if not filepath:
         return jsonify({'error': 'Image not found'}), 404
 
     try:
         results = detect_blot(filepath, confidence_threshold=confidence)
-        results['original'] = f"/static/demo_images/{filename}"
+        results['original'] = web_path
         return jsonify(results)
     except Exception as e:
         current_app.logger.error(f"Detection failed: {e}")
@@ -58,11 +73,8 @@ def analyze_row_endpoint():
     if row_id is None:
         return jsonify({'error': 'No row_id provided'}), 400
 
-    # Security check
-    filename = secure_filename(filename)
-
-    filepath = os.path.join(current_app.root_path, 'static/demo_images', filename)
-    if not os.path.exists(filepath):
+    filepath, _ = find_image_path(filename)
+    if not filepath:
         return jsonify({'error': 'Image not found'}), 404
 
     try:
@@ -80,6 +92,32 @@ def model_info():
     """Return model status and information."""
     manager = get_model_manager()
     return jsonify(manager.get_info())
+
+
+@bp.route('/upload', methods=['POST'])
+def upload_image():
+    """Upload an image file for analysis."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+        return jsonify({'error': 'Invalid file type'}), 400
+    
+    filename = secure_filename(file.filename)
+    upload_dir = os.path.join(current_app.root_path, 'static/uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    filepath = os.path.join(upload_dir, filename)
+    file.save(filepath)
+    
+    return jsonify({
+        'filename': filename,
+        'path': f'/static/uploads/{filename}'
+    })
 
 
 @bp.route('/demo-images')

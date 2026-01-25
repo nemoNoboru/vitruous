@@ -4,26 +4,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vitreous | Western Blot Quantification by Mansus</title>
+    <title>Vitreous | Western Blot Quantification</title>
     <link rel="icon" type="image/png" href="/static/favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
                         cream: {
-                            50: '#fdfcfa',
-                            100: '#f8f5f0',
-                            200: '#f0ebe3',
-                            300: '#e5ddd1',
-                            400: '#d4c9b8',
+                            50: '#f9f4ef',   /* vintage-paper */
+                            100: '#f4ece1',  /* vintage-cream */
+                            200: '#ebe3d6',
+                            300: '#ddd3c3',
+                            400: '#c9bca8',
                         },
                         ink: {
-                            700: '#3d3833',
-                            800: '#2a2622',
-                            900: '#1a1714',
+                            600: '#3a3430',
+                            700: '#2a2622',
+                            800: '#1a1614',  /* vintage-ink */
+                            900: '#0f0e0c',
+                        },
+                        accent: {
+                            500: '#da7756',  /* claude orange */
+                            600: '#c96a4a',
                         }
                     }
                 }
@@ -31,310 +36,240 @@
         }
     </script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .font-serif { font-family: 'Cormorant Garamond', Georgia, serif; }
+        
+        /* Elegant scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f0ebe3; }
+        ::-webkit-scrollbar-thumb { background: #d4c9b8; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #b8a992; }
 
-        .font-serif {
-            font-family: 'Cormorant Garamond', Georgia, serif;
-        }
+        /* Range slider - cream theme */
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 3px; background: rgba(42,38,34,0.3); border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #f8f5f0; border: 2px solid #2a2622; border-radius: 50%; margin-top: -6px; cursor: pointer; }
 
-        .glass-panel {
-            background: rgba(248, 245, 240, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(212, 201, 184, 0.3);
-        }
-
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 20px;
-            width: 20px;
-            border-radius: 50%;
-            background: #3d3833;
-            cursor: pointer;
-            margin-top: -8px;
-            box-shadow: 0 0 0 4px rgba(61, 56, 51, 0.1);
-        }
-
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 4px;
-            cursor: pointer;
-            background: #e5ddd1;
-            border-radius: 2px;
-        }
-
-        /* Animations */
-        .fade-in {
-            animation: fadeIn 0.3s ease-out;
-        }
-        .slide-up {
-            animation: slideUp 0.3s ease-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        @keyframes slideUp {
-            from { transform: translateY(10px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        /* Skeleton loading */
-        .skeleton {
-            background: linear-gradient(90deg, #e5ddd1 25%, #f0ebe3 50%, #e5ddd1 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-        }
-        @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-
-        /* Smooth transitions */
-        .transition-panel {
-            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
-        }
+        .fade-in { animation: fadeIn 0.25s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 
-<body class="bg-cream-100 min-h-screen flex flex-col items-center">
+<body class="bg-cream-100 h-screen flex flex-col text-sm" style="background-color: #f4ece1;">
 
-    <!-- Navbar -->
-    <nav class="w-full bg-cream-50 border-b border-cream-300 sticky top-0 z-50">
-        <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-14">
-                <div class="flex items-center space-x-3">
-                    <div class="w-8 h-8 flex items-center justify-center">
-                        <img src="/static/logo.svg" alt="Vitreous" class="w-full h-full">
-                    </div>
-                    <span class="text-lg font-serif font-semibold text-ink-800 tracking-wide">Vitreous</span>
-                </div>
-                <div class="flex items-center space-x-6">
-                    <span id="modelStatus" class="text-xs text-ink-700/60 tracking-widest uppercase">Loading model...</span>
-                    <button id="demoBtn"
-                        class="text-sm font-medium text-ink-700 hover:text-ink-900 transition-colors tracking-wide">
-                        Gallery
-                    </button>
-                </div>
-            </div>
+    <!-- Header -->
+    <header class="h-12 border-b border-cream-300 flex items-center px-5 shrink-0" style="background-color: #f9f4ef;">
+        <div class="flex items-center gap-3">
+            <img src="/static/logo.svg" alt="Vitreous" class="w-6 h-6">
+            <span class="text-xl font-serif font-semibold text-ink-800 tracking-wide">Vitreous</span>
+            <span class="text-xs text-ink-600/60 ml-1 tracking-wide">by Mansus</span>
         </div>
-    </nav>
-
-    <!-- Main Content -->
-    <main class="flex-grow w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-4">
-
-        <!-- Top Toolbar Row (minimal) -->
-        <div class="flex flex-wrap items-center gap-3 bg-cream-50 rounded-lg border border-cream-300 px-4 py-2.5">
-            <!-- Load Button -->
-            <button id="selectDemoBtn"
-                class="flex items-center gap-2 px-4 py-2 bg-ink-800 text-cream-100 rounded-md hover:bg-ink-900 transition-colors text-sm font-medium tracking-wide">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Load Blot
+        <div class="ml-auto flex items-center gap-5">
+            <span id="modelStatus" class="text-xs text-ink-700/50 tracking-wide">Loading model...</span>
+            <button id="demoBtn" class="text-sm text-ink-700 hover:text-ink-900 transition-colors font-medium">
+                Gallery
             </button>
+        </div>
+    </header>
 
-            <!-- Stats (right side) -->
-            <div class="ml-auto flex items-center gap-4">
-                <div class="text-xs text-ink-700/60">
-                    <span class="font-mono text-ink-800" id="imgRes">-- × --</span>
-                    <span class="ml-1 tracking-wide">px</span>
-                </div>
-                <div class="h-4 w-px bg-cream-300"></div>
-                <div class="flex items-center gap-3 text-xs">
-                    <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-ink-800"></span>
-                        <span class="text-ink-700/70">Bands</span>
-                        <span class="font-mono text-ink-800 font-semibold" id="bandCount">--</span>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-cream-400"></span>
-                        <span class="text-ink-700/70">Rows</span>
-                        <span class="font-mono text-ink-800 font-semibold" id="rowCount">--</span>
-                    </div>
+    <!-- Main Workspace (2/3 height) -->
+    <div class="flex min-h-0" style="flex: 2;">
+
+        <!-- Sidebar: Library -->
+        <aside class="w-52 border-r border-cream-300 flex flex-col shrink-0 min-h-0 overflow-hidden" style="background-color: #f9f4ef;">
+            <div class="h-10 px-4 flex items-center justify-between border-b border-cream-200">
+                <span class="text-xs font-semibold text-ink-800 uppercase tracking-widest">Library</span>
+                <button id="uploadBtn" class="p-1.5 text-ink-600 hover:text-ink-900 hover:bg-cream-200 rounded-lg transition-colors" title="Upload">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                </button>
+            </div>
+            <div id="filesList" class="flex-1 overflow-y-auto p-2 space-y-2">
+                <div id="filesEmptyState" class="flex flex-col items-center justify-center h-full text-center py-12">
+                    <svg class="w-12 h-12 text-cream-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    <p class="text-ink-600/50 text-xs">No images yet</p>
+                    <p class="text-ink-600/40 text-xs mt-1">Upload or load a sample</p>
                 </div>
             </div>
-        </div>
+            <input type="file" id="fileInput" class="hidden" accept="image/*" multiple />
+        </aside>
 
-        <!-- Main Content Row: Image (1/2) + Densitometry Panel (1/2) -->
-        <div class="flex flex-col lg:flex-row gap-4 flex-grow min-h-0">
+        <!-- Center: Canvas Area -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-ink-900 min-h-0">
+            
+            <!-- Toolbar -->
+            <div class="h-10 bg-ink-800/50 border-b border-ink-800 flex items-center px-4 gap-4 shrink-0">
+                <button id="selectDemoBtn" class="flex items-center gap-2 px-3 py-1.5 text-cream-300 hover:text-cream-100 hover:bg-ink-700 rounded-lg transition-colors text-xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Load Sample
+                </button>
+                <div class="h-5 w-px bg-ink-700"></div>
+                <div class="flex items-center gap-4 text-xs text-cream-400/70">
+                    <span class="font-mono text-cream-300" id="imgRes">-- × --</span>
+                    <span class="text-ink-600">|</span>
+                    <span>Bands: <span class="text-cream-200 font-medium" id="bandCount">--</span></span>
+                    <span>Rows: <span class="text-cream-200 font-medium" id="rowCount">--</span></span>
+                </div>
+            </div>
 
-            <!-- Image Canvas (Left Half) -->
-            <div class="lg:w-1/2 flex flex-col bg-ink-900 rounded-xl relative shadow-xl overflow-hidden border border-ink-800">
-                <div class="flex-grow relative flex items-center justify-center" id="visualizationCanvas">
-                    <div id="emptyState" class="text-center p-8">
-                        <div class="w-14 h-14 bg-cream-200/10 rounded-lg mx-auto flex items-center justify-center mb-4">
-                            <svg class="w-7 h-7 text-cream-300/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                        </div>
-                        <p class="text-cream-300/60 text-sm font-light tracking-wide">Load a blot image to begin</p>
-                    </div>
-                    <div id="loadingState" class="hidden absolute inset-0 bg-ink-900/90 z-50 flex items-center justify-center">
-                        <div class="flex flex-col items-center gap-3">
-                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-cream-300"></div>
-                            <span class="text-cream-300/80 text-sm" id="loadingText">Loading...</span>
-                        </div>
-                    </div>
-                    <div id="canvasContainer" class="hidden w-full h-full relative">
-                        <img id="originalImage" class="w-full h-full object-contain select-none" draggable="false" />
-                        <canvas id="overlayCanvas" class="absolute top-0 left-0 w-full h-full cursor-pointer"></canvas>
+            <!-- Canvas -->
+            <div class="flex-1 relative flex items-center justify-center overflow-hidden" id="visualizationCanvas">
+                <div id="emptyState" class="text-center">
+                    <svg class="w-20 h-20 text-ink-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p class="text-cream-500/50 text-sm font-light">Load an image to begin analysis</p>
+                </div>
+                <div id="loadingState" class="hidden absolute inset-0 bg-ink-900/95 z-50 flex items-center justify-center">
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="animate-spin rounded-full h-8 w-8 border-2 border-cream-600 border-t-cream-200"></div>
+                        <span class="text-cream-300 text-sm" id="loadingText">Processing...</span>
                     </div>
                 </div>
-                <!-- Controls Overlay (top) -->
-                <div class="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-                    <div class="flex items-center gap-2 bg-ink-900/85 backdrop-blur-sm rounded-lg px-3 py-2 pointer-events-auto shadow-lg">
-                        <span class="text-[10px] uppercase tracking-widest text-cream-400/70">Threshold</span>
-                        <input type="range" id="confidenceSlider" min="10" max="90" value="50" 
-                            class="w-16 h-1 bg-cream-600/30 rounded-full appearance-none cursor-pointer
-                            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 
-                            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cream-200 [&::-webkit-slider-thumb]:cursor-pointer
-                            [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110">
-                        <span class="text-xs font-mono text-cream-200 tabular-nums w-7" id="confidenceValue">0.50</span>
+                <div id="canvasContainer" class="hidden w-full h-full relative">
+                    <img id="originalImage" class="w-full h-full object-contain select-none" draggable="false" />
+                    <canvas id="overlayCanvas" class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
+                </div>
+
+                <!-- Floating Controls -->
+                <div class="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
+                    <div class="flex items-center gap-3 bg-ink-900/90 backdrop-blur-sm rounded-xl px-4 py-2.5 pointer-events-auto border border-ink-700 shadow-lg">
+                        <span class="text-cream-400/70 text-xs uppercase tracking-wider">Threshold</span>
+                        <input type="range" id="confidenceSlider" min="10" max="90" value="50" class="w-24">
+                        <span class="text-cream-200 text-xs font-mono w-8" id="confidenceValue">0.50</span>
                     </div>
                     <button id="detectBtn"
-                        class="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-500 transition-all text-sm font-semibold tracking-wide shadow-lg pointer-events-auto disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-green-800"
+                        class="flex items-center gap-2 px-5 py-2.5 text-white rounded-xl transition-all text-sm font-semibold pointer-events-auto disabled:opacity-40 disabled:cursor-not-allowed shadow-lg"
+                        style="background: linear-gradient(135deg, #da7756 0%, #c96a4a 100%);"
                         disabled>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                         </svg>
                         Analyze
                     </button>
                 </div>
-                <!-- Status Hint (bottom) -->
-                <div class="absolute bottom-3 left-3 bg-ink-800/80 backdrop-blur-sm rounded-md px-3 py-1.5 text-xs text-cream-300/80 tracking-wide">
-                    <span id="statusHint">Load an image and click Detect Bands</span>
+
+                <!-- Status Bar -->
+                <div class="absolute bottom-4 left-4 bg-ink-900/90 backdrop-blur-sm rounded-lg px-4 py-2 border border-ink-700">
+                    <span id="statusHint" class="text-cream-400/80 text-xs">Ready</span>
                 </div>
             </div>
+        </main>
 
-            <!-- Densitometry Panel (Right Half) -->
-            <div class="lg:w-1/2 flex flex-col bg-cream-50 rounded-xl shadow-lg border border-cream-300 overflow-hidden">
-                <div class="px-4 py-3 border-b border-cream-200 flex items-center justify-between">
-                    <div>
-                        <h3 class="text-sm font-serif font-semibold text-ink-800 tracking-wide">Densitometry Profile</h3>
-                        <p class="text-xs text-ink-700/60 mt-0.5" id="profileSubtitle">Click a row on the image to analyze</p>
-                    </div>
-                    <span id="selectedRowBadge" class="hidden px-2.5 py-1 bg-ink-800 text-cream-100 text-xs rounded-full font-medium tracking-wide">Row 1</span>
-                </div>
-                <div class="flex-grow flex flex-col p-4 bg-cream-100/50 min-h-0">
-                    <!-- Profile Graph -->
-                    <div id="profileContainer" class="flex-grow min-h-0 bg-white rounded-lg border border-cream-200 p-3 mb-3">
-                        <div id="profileEmptyState" class="flex flex-col items-center justify-center h-full text-center">
-                            <svg class="w-10 h-10 text-ink-700/20 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                            <p class="text-ink-700/40 text-sm">Profile will appear here</p>
-                        </div>
-                        <canvas id="profileCanvas" class="hidden w-full h-full"></canvas>
-                    </div>
-                    <!-- Row Strip Image -->
-                    <div id="stripContainer" class="h-20 bg-white rounded-lg border border-cream-200 overflow-hidden">
-                        <div id="stripEmptyState" class="flex items-center justify-center h-full">
-                            <p class="text-ink-700/40 text-xs">Selected row image</p>
-                        </div>
-                        <canvas id="stripCanvas" class="hidden w-full h-full"></canvas>
-                    </div>
-                </div>
+        <!-- Right Panel: Results -->
+        <aside class="flex-1 bg-cream-50 border-l border-cream-300 flex flex-col min-h-0 overflow-hidden" style="background-color: #f9f4ef;">
+            <div class="h-10 px-4 flex items-center justify-between border-b border-cream-200">
+                <span class="text-xs font-semibold text-ink-800 uppercase tracking-widest">Analysis</span>
+                <span id="selectedRowBadge" class="hidden px-2.5 py-1 text-white text-xs rounded-full font-medium" style="background-color: #da7756;">Row 1</span>
             </div>
-        </div>
-
-        <!-- Bottom Section: Band Analysis Table -->
-        <div id="analysisPanel" class="hidden bg-cream-50 rounded-2xl shadow-sm border border-cream-300 overflow-hidden flex flex-col shrink-0 transition-panel">
-            <!-- Header -->
-            <div class="flex items-center border-b border-cream-200 px-6 py-3">
-                <h3 class="text-sm font-serif font-semibold text-ink-800 tracking-wide">Band Intensity Analysis</h3>
-                <span id="selectedRowLabel" class="ml-3 px-2.5 py-1 bg-ink-800 text-cream-100 text-xs rounded-full font-medium tracking-wide">Row 1</span>
-                <div class="ml-auto">
-                    <button id="exportBtn"
-                        class="flex items-center gap-2 px-3 py-1.5 bg-ink-800 text-cream-100 text-xs font-medium rounded-lg hover:bg-ink-900 transition-colors">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            
+            <div class="flex-1 flex flex-col p-3 gap-3 overflow-y-auto bg-cream-100/50">
+                <!-- Profile Graph -->
+                <div id="profileContainer" class="flex-1 min-h-[200px] bg-white rounded-xl border border-cream-200 p-3 shadow-sm">
+                    <div id="profileEmptyState" class="flex flex-col items-center justify-center h-full text-center">
+                        <svg class="w-10 h-10 text-cream-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
-                        Export CSV
-                    </button>
+                        <p class="text-ink-600/40 text-sm font-serif">Intensity profile</p>
+                    </div>
+                    <canvas id="profileCanvas" class="hidden w-full h-full"></canvas>
+                </div>
+                
+                <!-- Strip Preview -->
+                <div id="stripContainer" class="h-20 bg-white rounded-xl border border-cream-200 overflow-hidden shadow-sm shrink-0">
+                    <div id="stripEmptyState" class="flex items-center justify-center h-full">
+                        <p class="text-ink-600/40 text-xs">Selected row preview</p>
+                    </div>
+                    <canvas id="stripCanvas" class="hidden w-full h-full"></canvas>
                 </div>
             </div>
 
-            <!-- Band Table (Full Width) -->
-            <div class="p-4">
-                <div class="bg-cream-100 rounded-xl border border-cream-200 overflow-hidden">
-                    <table class="w-full text-sm">
-                        <thead class="bg-cream-200">
-                            <tr>
-                                <th class="px-4 py-2.5 text-left text-xs font-semibold text-ink-700">Band</th>
-                                <th class="px-4 py-2.5 text-right text-xs font-semibold text-ink-700">Mean Intensity</th>
-                                <th class="px-4 py-2.5 text-right text-xs font-semibold text-ink-700">Integrated Density</th>
-                                <th class="px-4 py-2.5 text-right text-xs font-semibold text-ink-700">BG Corrected</th>
-                                <th class="px-4 py-2.5 text-right text-xs font-semibold text-ink-700">Relative Intensity</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bandTableBody" class="divide-y divide-cream-200">
-                            <!-- Populated by JS -->
-                        </tbody>
-                        <!-- Skeleton rows for loading state -->
-                        <tbody id="bandTableSkeleton" class="hidden divide-y divide-cream-200">
-                            <tr class="bg-cream-50">
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-16 rounded"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-12 rounded ml-auto"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-16 rounded ml-auto"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-16 rounded ml-auto"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-24 rounded ml-auto"></div></td>
-                            </tr>
-                            <tr class="bg-cream-50">
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-16 rounded"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-12 rounded ml-auto"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-16 rounded ml-auto"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-16 rounded ml-auto"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-24 rounded ml-auto"></div></td>
-                            </tr>
-                            <tr class="bg-cream-50">
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-16 rounded"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-12 rounded ml-auto"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-16 rounded ml-auto"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-16 rounded ml-auto"></div></td>
-                                <td class="px-4 py-2.5"><div class="skeleton h-4 w-24 rounded ml-auto"></div></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            <!-- Subtitle -->
+            <div class="px-4 py-3 border-t border-cream-200 bg-cream-50">
+                <p id="profileSubtitle" class="text-ink-600/60 text-xs">Click a detected row to view profile</p>
             </div>
+        </aside>
+    </div>
+
+    <!-- Bottom Panel: Band Table (1/4 height) -->
+    <div id="analysisPanel" class="border-t border-cream-300 flex flex-col overflow-hidden" style="flex: 1; background-color: #f9f4ef;">
+        <div class="h-10 px-5 flex items-center border-b border-cream-200 shrink-0">
+            <span class="text-xs font-semibold text-ink-800 uppercase tracking-widest">Band Measurements</span>
+            <span id="selectedRowLabel" class="ml-3 px-2.5 py-1 text-white text-xs rounded-full font-medium hidden" style="background-color: #da7756;">Row 1</span>
+            <button id="exportBtn" class="ml-auto flex items-center gap-2 px-3 py-1.5 text-ink-700 hover:text-ink-900 hover:bg-cream-200 rounded-lg transition-colors text-xs font-medium opacity-50" disabled>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export CSV
+            </button>
         </div>
+        <div class="flex-1 overflow-auto">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0" style="background-color: #ebe3d6;">
+                    <tr>
+                        <th class="px-5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">Band</th>
+                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">Mean</th>
+                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">Integrated</th>
+                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">BG Corrected</th>
+                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">Relative</th>
+                    </tr>
+                </thead>
+                <tbody id="bandTableBody" class="divide-y divide-cream-200">
+                    <!-- Skeleton rows shown by default -->
+                </tbody>
+                <tbody id="bandTableSkeleton" class="divide-y divide-cream-200">
+                    <tr style="background: #fff;">
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-12 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-24 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                    </tr>
+                    <tr style="background: #fff;">
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-12 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-24 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                    </tr>
+                    <tr style="background: #fff;">
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-12 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-24 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-    </main>
-
-    <!-- Demo Selection Modal -->
-    <div id="demoModal"
-        class="hidden fixed inset-0 z-[100] bg-ink-900/80 backdrop-blur-sm items-center justify-center p-4 sm:p-6 opacity-0 transition-opacity duration-300">
-        <div class="bg-cream-50 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden relative transform scale-95 transition-transform duration-300"
-            id="demoModalContent">
-
-            <!-- Header -->
-            <div class="flex items-center justify-between px-6 py-4 border-b border-cream-200 bg-cream-50 z-10">
+    <!-- Demo Modal -->
+    <div id="demoModal" class="hidden fixed inset-0 z-[100] bg-ink-900/80 backdrop-blur-sm items-center justify-center p-6 opacity-0 transition-opacity duration-200">
+        <div class="bg-cream-50 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[70vh] flex flex-col overflow-hidden border border-cream-300" id="demoModalContent">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-cream-200">
                 <div>
-                    <h3 class="text-lg font-serif font-semibold text-ink-800">Select Western Blot Image</h3>
-                    <p class="text-sm text-ink-700/60">Choose a sample blot to analyze</p>
+                    <h3 class="text-lg font-serif font-semibold text-ink-800">Sample Images</h3>
+                    <p class="text-ink-600/60 text-sm mt-0.5">Select a Western blot to analyze</p>
                 </div>
-
-                <button id="closeDemoModalBtn"
-                    class="p-2 text-ink-700/50 hover:text-ink-800 rounded-lg hover:bg-cream-200 transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12" />
+                <button id="closeDemoModalBtn" class="p-2 text-ink-600 hover:text-ink-900 rounded-lg hover:bg-cream-200 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
-
-            <!-- Content -->
-            <div class="flex-grow p-6 bg-cream-100 overflow-y-auto">
+            <div class="flex-1 p-6 overflow-y-auto bg-cream-100">
                 <div id="demoGrid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div class="col-span-full flex justify-center py-12">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-ink-700"></div>
+                    <div class="col-span-full flex justify-center py-8">
+                        <div class="animate-spin rounded-full h-8 w-8 border-2 border-cream-400 border-t-ink-800"></div>
                     </div>
                 </div>
             </div>

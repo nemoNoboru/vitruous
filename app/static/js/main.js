@@ -41,7 +41,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const bandTableBody = document.getElementById('bandTableBody');
   const exportBtn = document.getElementById('exportBtn');
 
+  // Files sidebar elements
+  const filesList = document.getElementById('filesList');
+  const filesEmptyState = document.getElementById('filesEmptyState');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const fileInput = document.getElementById('fileInput');
+
   // State
+  let uploadedFiles = []; // { id, name, dataUrl, analyzed }
+  let activeFileId = null;
   let currentFilename = null;
   let detectionResult = null;
   let selectedRowId = null;
@@ -60,6 +68,125 @@ document.addEventListener('DOMContentLoaded', () => {
   confidenceSlider.addEventListener('input', () => {
     confidenceValue.textContent = (confidenceSlider.value / 100).toFixed(2);
   });
+
+  // File upload handlers
+  if (uploadBtn) {
+    uploadBtn.addEventListener('click', () => fileInput.click());
+  }
+  if (fileInput) {
+    fileInput.addEventListener('change', handleFileUpload);
+  }
+
+  // --- Files Library ---
+
+  async function handleFileUpload(e) {
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      
+      // Upload to server
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        setLoading(true, 'Uploading...');
+        const res = await fetch('/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!res.ok) {
+          console.error('Upload failed');
+          continue;
+        }
+        
+        const result = await res.json();
+        
+        const newFile = {
+          id: Date.now() + Math.random(),
+          name: result.filename,
+          dataUrl: result.path,
+          analyzed: false
+        };
+        uploadedFiles.push(newFile);
+        renderFilesList();
+        selectFile(newFile.id);
+      } catch (err) {
+        console.error('Upload error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fileInput.value = '';
+  }
+
+  function renderFilesList() {
+    if (!filesList) return;
+    const fileItems = uploadedFiles.map(f => `
+      <div class="file-item group cursor-pointer rounded-xl border-2 transition-all overflow-hidden ${f.id === activeFileId ? 'shadow-md' : 'border-transparent hover:shadow-sm'}"
+           style="background: #fff; ${f.id === activeFileId ? 'border-color: #da7756;' : 'border-color: transparent;'}"
+           data-file-id="${f.id}">
+        <div class="aspect-[4/3] overflow-hidden" style="background: #f4ece1;">
+          <img src="${f.dataUrl}" alt="${f.name}" class="w-full h-full object-cover" />
+        </div>
+        <div class="px-2.5 py-2">
+          <p class="text-xs truncate font-medium" style="color: #1a1614;">${f.name}</p>
+          <div class="flex items-center gap-1.5 mt-1">
+            ${f.analyzed 
+              ? '<span class="w-2 h-2 rounded-full" style="background: #da7756;"></span><span class="text-[10px] font-medium" style="color: #c96a4a;">Analyzed</span>'
+              : '<span class="w-2 h-2 rounded-full" style="background: #ddd3c3;"></span><span class="text-[10px]" style="color: #9a9080;">Pending</span>'
+            }
+          </div>
+        </div>
+      </div>
+    `).join('');
+    
+    filesEmptyState.classList.toggle('hidden', uploadedFiles.length > 0);
+    filesList.innerHTML = (uploadedFiles.length > 0 ? fileItems : '') + filesEmptyState.outerHTML;
+    
+    // Re-attach click handlers
+    filesList.querySelectorAll('.file-item').forEach(item => {
+      item.addEventListener('click', () => selectFile(Number(item.dataset.fileId)));
+    });
+  }
+
+  function selectFile(fileId) {
+    const file = uploadedFiles.find(f => f.id === fileId);
+    if (!file) return;
+    
+    activeFileId = fileId;
+    currentFilename = file.name;
+    
+    // Load the image
+    emptyState.classList.add('hidden');
+    canvasContainer.classList.remove('hidden');
+    originalImage.src = file.dataUrl;
+    
+    originalImage.onload = () => {
+      imgResLabel.textContent = `${originalImage.naturalWidth} × ${originalImage.naturalHeight}`;
+      isImageLoaded = true;
+      detectBtn.disabled = false;
+      statusHint.textContent = 'Click "Analyze" to detect bands';
+      resizeOverlay();
+      clearSelection();
+      // Reset detection state
+      detectionResult = null;
+      selectedRowId = null;
+      analysisResult = null;
+      bandCount.textContent = '--';
+      rowCount.textContent = '--';
+    };
+    
+    renderFilesList();
+  }
+
+  function markFileAnalyzed(fileId) {
+    const file = uploadedFiles.find(f => f.id === fileId);
+    if (file) {
+      file.analyzed = true;
+      renderFilesList();
+    }
+  }
 
   // --- Model Status ---
 
@@ -98,15 +225,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function loadInitialImage() {
+    // Add initial demo image to files list
+    const initialFile = {
+      id: Date.now(),
+      name: 'initial.png',
+      dataUrl: '/static/demo_images/initial.png',
+      analyzed: false
+    };
+    uploadedFiles.push(initialFile);
+    activeFileId = initialFile.id;
+    renderFilesList();
+    
     emptyState.classList.add('hidden');
     canvasContainer.classList.remove('hidden');
-    originalImage.src = '/static/initial.png';
+    originalImage.src = '/static/demo_images/initial.png';
     currentFilename = 'initial.png';
     originalImage.onload = () => {
-      imgResLabel.textContent = `${originalImage.naturalWidth} x ${originalImage.naturalHeight}`;
+      imgResLabel.textContent = `${originalImage.naturalWidth} × ${originalImage.naturalHeight}`;
       isImageLoaded = true;
       detectBtn.disabled = false;
-      statusHint.textContent = 'Click "Detect Bands" to analyze';
+      statusHint.textContent = 'Click "Analyze" to detect bands';
       resizeOverlay();
     };
   }
@@ -120,15 +258,46 @@ document.addEventListener('DOMContentLoaded', () => {
     overlayCanvas.height = rect.height;
   }
 
+  // Calculate displayed image bounds accounting for object-contain
+  function getImageDisplayBounds() {
+    const containerRect = originalImage.getBoundingClientRect();
+    const containerW = containerRect.width;
+    const containerH = containerRect.height;
+    const imgW = originalImage.naturalWidth;
+    const imgH = originalImage.naturalHeight;
+    
+    if (!imgW || !imgH) return { offsetX: 0, offsetY: 0, scale: 1 };
+    
+    const containerRatio = containerW / containerH;
+    const imageRatio = imgW / imgH;
+    
+    let displayW, displayH, offsetX, offsetY;
+    
+    if (imageRatio > containerRatio) {
+      // Image is wider - letterbox top/bottom
+      displayW = containerW;
+      displayH = containerW / imageRatio;
+      offsetX = 0;
+      offsetY = (containerH - displayH) / 2;
+    } else {
+      // Image is taller - letterbox left/right
+      displayH = containerH;
+      displayW = containerH * imageRatio;
+      offsetX = (containerW - displayW) / 2;
+      offsetY = 0;
+    }
+    
+    const scale = displayW / imgW;
+    return { offsetX, offsetY, scale, displayW, displayH };
+  }
+
   function drawDetections() {
     if (!detectionResult || !detectionResult.rows) return;
 
     resizeOverlay();
     ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-    const rect = originalImage.getBoundingClientRect();
-    const scaleX = rect.width / originalImage.naturalWidth;
-    const scaleY = rect.height / originalImage.naturalHeight;
+    const { offsetX, offsetY, scale } = getImageDisplayBounds();
 
     detectionResult.rows.forEach((row, rowIdx) => {
       const isSelected = rowIdx === selectedRowId;
@@ -139,19 +308,19 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.lineWidth = isSelected ? 3 : 1;
       ctx.setLineDash(isSelected ? [] : [4, 4]);
       ctx.strokeRect(
-        rowBbox.x1 * scaleX,
-        rowBbox.y1 * scaleY,
-        (rowBbox.x2 - rowBbox.x1) * scaleX,
-        (rowBbox.y2 - rowBbox.y1) * scaleY
+        offsetX + rowBbox.x1 * scale,
+        offsetY + rowBbox.y1 * scale,
+        (rowBbox.x2 - rowBbox.x1) * scale,
+        (rowBbox.y2 - rowBbox.y1) * scale
       );
 
       // Draw individual bands
       row.bands.forEach((band, bandIdx) => {
         const bbox = band.bbox;
-        const x = bbox.x1 * scaleX;
-        const y = bbox.y1 * scaleY;
-        const w = (bbox.x2 - bbox.x1) * scaleX;
-        const h = (bbox.y2 - bbox.y1) * scaleY;
+        const x = offsetX + bbox.x1 * scale;
+        const y = offsetY + bbox.y1 * scale;
+        const w = (bbox.x2 - bbox.x1) * scale;
+        const h = (bbox.y2 - bbox.y1) * scale;
 
         ctx.strokeStyle = isSelected ? '#22c55e' : '#a5b4fc';
         ctx.lineWidth = isSelected ? 2 : 1;
@@ -173,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Row label
       ctx.fillStyle = isSelected ? '#22c55e' : '#6366f1';
       ctx.font = 'bold 14px system-ui';
-      ctx.fillText(`Row ${rowIdx + 1}`, rowBbox.x1 * scaleX, rowBbox.y1 * scaleY - 8);
+      ctx.fillText(`Row ${rowIdx + 1}`, offsetX + rowBbox.x1 * scale, offsetY + rowBbox.y1 * scale - 8);
     });
   }
 
@@ -193,12 +362,16 @@ document.addEventListener('DOMContentLoaded', () => {
   overlayCanvas.addEventListener('click', (e) => {
     if (!detectionResult || !detectionResult.rows.length) return;
 
-    const rect = originalImage.getBoundingClientRect();
     const canvasRect = overlayCanvas.getBoundingClientRect();
+    const { offsetX, offsetY, scale } = getImageDisplayBounds();
 
-    // Get click position relative to image
-    const clickX = (e.clientX - canvasRect.left) / rect.width * originalImage.naturalWidth;
-    const clickY = (e.clientY - canvasRect.top) / rect.height * originalImage.naturalHeight;
+    // Get click position in canvas coordinates
+    const canvasX = e.clientX - canvasRect.left;
+    const canvasY = e.clientY - canvasRect.top;
+    
+    // Convert to image coordinates (accounting for letterboxing)
+    const clickX = (canvasX - offsetX) / scale;
+    const clickY = (canvasY - offsetY) / scale;
 
     // Find which row was clicked
     const clickedRowIdx = getClickedRow(clickX, clickY);
@@ -251,6 +424,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (detectionResult.total_rows > 0) {
         statusHint.textContent = `Detected ${detectionResult.total_bands} bands in ${detectionResult.total_rows} rows. Click a row to analyze.`;
         drawDetections();
+        // Mark file as analyzed
+        if (activeFileId) markFileAnalyzed(activeFileId);
         // Auto-select first row
         setLoading(false);
         selectRow(0);
@@ -322,10 +497,15 @@ document.addEventListener('DOMContentLoaded', () => {
     stripEmptyState.classList.add('hidden');
     stripCanvas.classList.remove('hidden');
 
-    // Analysis panel with fade-in animation
-    analysisPanel.classList.remove('hidden');
-    analysisPanel.classList.add('fade-in');
+    // Analysis panel - show label, hide skeleton, enable export
     selectedRowLabel.textContent = `Row ${rowId + 1}`;
+    selectedRowLabel.classList.remove('hidden');
+    const bandTableSkeleton = document.getElementById('bandTableSkeleton');
+    if (bandTableSkeleton) bandTableSkeleton.classList.add('hidden');
+    if (exportBtn) {
+      exportBtn.disabled = false;
+      exportBtn.classList.remove('opacity-50');
+    }
 
     // Add slide-up animation to profile area
     profileCanvas.classList.add('slide-up');
@@ -333,20 +513,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Remove animation classes after they complete (for re-triggering)
     setTimeout(() => {
-      analysisPanel.classList.remove('fade-in');
       profileCanvas.classList.remove('slide-up');
       stripCanvas.classList.remove('slide-up');
     }, 300);
   }
 
   function hideAnalysisUI() {
-    profileSubtitle.textContent = 'Click a row on the image to analyze';
+    profileSubtitle.textContent = 'Click a detected row to view profile';
     selectedRowBadge.classList.add('hidden');
     profileEmptyState.classList.remove('hidden');
     profileCanvas.classList.add('hidden');
     stripEmptyState.classList.remove('hidden');
     stripCanvas.classList.add('hidden');
-    analysisPanel.classList.add('hidden');
+    
+    // Show skeleton, hide label, disable export
+    selectedRowLabel.classList.add('hidden');
+    const bandTableSkeleton = document.getElementById('bandTableSkeleton');
+    if (bandTableSkeleton) bandTableSkeleton.classList.remove('hidden');
+    if (bandTableBody) bandTableBody.innerHTML = '';
+    if (exportBtn) {
+      exportBtn.disabled = true;
+      exportBtn.classList.add('opacity-50');
+    }
   }
 
   function populateBandTable() {
@@ -359,18 +547,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const relPercent = (intensity.relative * 100).toFixed(1);
 
       const tr = document.createElement('tr');
-      tr.className = 'bg-white hover:bg-slate-50';
+      tr.style.cssText = 'background: #fff;';
       tr.innerHTML = `
-        <td class="px-4 py-2.5 font-medium text-slate-800">Band ${idx + 1}</td>
-        <td class="px-4 py-2.5 text-right text-slate-600 font-mono">${intensity.mean.toFixed(1)}</td>
-        <td class="px-4 py-2.5 text-right text-slate-600 font-mono">${intensity.integrated_density.toFixed(0)}</td>
-        <td class="px-4 py-2.5 text-right text-slate-600 font-mono">${intensity.background_corrected.toFixed(0)}</td>
-        <td class="px-4 py-2.5 text-right">
-          <div class="flex items-center justify-end gap-2">
-            <div class="w-20 bg-slate-200 rounded-full h-2">
-              <div class="bg-green-500 h-2 rounded-full" style="width: ${relPercent}%"></div>
+        <td class="px-5 py-2.5 font-medium" style="color: #1a1614;">Band ${idx + 1}</td>
+        <td class="px-5 py-2.5 text-right font-mono" style="color: #3a3430;">${intensity.mean.toFixed(1)}</td>
+        <td class="px-5 py-2.5 text-right font-mono" style="color: #3a3430;">${intensity.integrated_density.toFixed(0)}</td>
+        <td class="px-5 py-2.5 text-right font-mono" style="color: #3a3430;">${intensity.background_corrected.toFixed(0)}</td>
+        <td class="px-5 py-2.5 text-right">
+          <div class="flex items-center justify-end gap-3">
+            <div class="w-20 rounded-full h-2" style="background: #ddd3c3;">
+              <div class="h-2 rounded-full" style="width: ${relPercent}%; background: #da7756;"></div>
             </div>
-            <span class="text-slate-800 font-medium font-mono w-14 text-right">${relPercent}%</span>
+            <span class="font-medium font-mono w-14 text-right" style="color: #1a1614;">${relPercent}%</span>
           </div>
         </td>
       `;
