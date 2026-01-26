@@ -1,45 +1,46 @@
 <div align="center">
 
-<img src="app/static/logo.svg" alt="OCT Vision Logo" width="120">
+<img src="app/static/logo.svg" alt="Vitreous Logo" width="120">
 
-# OCT Vision
-### Ophthalmology Assistance for Contact Lens Fitting and Corneal Analysis
+# Vitreous
+### Western Blot Quantification
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![OpenCV](https://img.shields.io/badge/OpenCV-4.x-green.svg)](https://opencv.org/)
+[![YOLO](https://img.shields.io/badge/YOLO-v8-green.svg)](https://docs.ultralytics.com/)
 
-*Engineering Project - Bachelor's Degree in Computer Engineering*  
-*Universidade da Coruña*
+*by Mansus*
 
 </div>
 
 ---
 
-## 🎯 Overview
+## Overview
 
-**OCT Vision** is a specialized tool designed to automate and enhance the measurement of the relationship between the cornea and contact lenses using Anterior Segment Optical Coherence Tomography (AS-OCT) images. 
+**Vitreous** is a web-based tool for automated western blot band detection and densitometry analysis. It uses machine learning to detect protein bands in blot images and calculates quantitative intensity metrics for each band.
 
-It provides clinicians with precise data to facilitate the calculation and adaptation of lenses, particularly for patients with irregular corneas (e.g., keratoconus, corneal transplants).
+The application provides researchers with precise measurements for comparative protein expression analysis, eliminating tedious manual band selection and intensity calculation.
 
-## ✨ Key Features
+## Key Features
 
-- **Automated Segmentation**: Precisely detects corneal and contact lens surfaces using optimized image processing pipelines.
-- **Metric Suite**:
-    - **Vertical Clearances**: Direct measurement of the sagittal gap.
-    - **Euclidean Clearance**: Minimum distance between surfaces for safety analysis.
-    - **Zonal Metrics**: Analysis of central vs. peripheral thickness.
-- **Interactive Visualization**: Real-time cross-sectional measurements with an interactive thickness profile.
-- **Demo Mode**: Built-in library of diverse clinical cases for training and validation.
+- **Automated Band Detection**: ML-powered detection of protein bands using a fine-tuned YOLO model.
+- **Row Grouping**: Automatic organization of detected bands into logical rows for multi-lane analysis.
+- **Densitometry Metrics**:
+    - **Integrated Density**: Total signal intensity per band.
+    - **Background Correction**: Edge-based background subtraction for accurate quantification.
+    - **Relative Intensity**: Normalized values for lane-to-lane comparison.
+- **Interactive Visualization**: Real-time intensity profiles with adjustable detection thresholds.
+- **Sample Gallery**: Built-in collection of western blot images for demonstration and testing.
+- **CSV Export**: Export band measurements for downstream statistical analysis.
 
-## 🛠️ Technical Stack
+## Technical Stack
 
-- **Backend**: Flask (Python) with a focus on custom computer vision algorithms.
-- **Computer Vision**: OpenCV, NumPy, and SciPy for edge detection, morphological processing, and polynomial interpolation.
-- **Frontend**: Vanilla JavaScript (Modern ES6+), Tailwind CSS for a premium medical interface.
-- **Testing**: Robust test suite using Pytest for core geometry and processing services.
+- **Backend**: Flask (Python) with REST API for detection and analysis.
+- **Detection**: Ultralytics YOLO for band detection, NumPy for densitometry calculations.
+- **Frontend**: Vanilla JavaScript (ES6+), Tailwind CSS with light/dark theme support.
+- **Testing**: Pytest for core detection and densitometry services.
 
-## ⚙️ Installation & Usage
+## Installation & Usage
 
 ### 1. Prerequisites
 - Python 3.11+
@@ -56,9 +57,9 @@ uv run python run.py
 ```
 Then visit `http://localhost:5000` in your browser.
 
-## 🐳 Deployment with Docker
+## Deployment with Docker
 
-You can easily deploy **OCT Vision** using Docker and Docker Compose. This ensures all system dependencies (OpenCV, etc.) are correctly configured.
+You can deploy **Vitreous** using Docker and Docker Compose. This ensures all system dependencies (YOLO, NumPy, etc.) are correctly configured.
 
 ### Using Docker Compose (Recommended)
 1. **Build and Start**:
@@ -70,11 +71,11 @@ You can easily deploy **OCT Vision** using Docker and Docker Compose. This ensur
 ### Using Dockerfile Directly
 1. **Build**:
    ```bash
-   docker build -t oct-vision .
+   docker build -t vitreous .
    ```
 2. **Run**:
    ```bash
-   docker run -p 5000:5000 oct-vision
+   docker run -p 5000:5000 vitreous
    ```
 
 ### 4. Run Tests
@@ -82,16 +83,14 @@ You can easily deploy **OCT Vision** using Docker and Docker Compose. This ensur
 PYTHONPATH=. uv run python3 -m pytest
 ```
 
-## 📊 Methodology
+## Methodology
 
 The application follows a multi-stage processing pipeline:
-1. **Preprocessing**: Image enhancement (CLAHE) and noise reduction.
-2. **Segmentation**: Canny edge detection and morphological grouping.
-3. **Analysis**: Least-squares polynomial fitting to derive smooth corneal/lens models.
-4. **Computation**: Geometric algorithms to find vertical and minimum Euclidean distances.
+1. **Detection**: YOLO-based object detection identifies protein bands in the blot image.
+2. **Row Grouping**: Bands are clustered into rows based on Y-coordinate proximity.
+3. **Densitometry**: For each band, intensity is calculated by inverting pixel values (dark bands = high signal) and computing integrated density with edge-based background correction.
+4. **Normalization**: Relative intensities are computed by normalizing each band's value to the row maximum.
 
-## 📄 License
+## License
 
 This project is licensed under the GNU General Public License v3.0.
-
-Developed with precision for the ophthalmology community.
