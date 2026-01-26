@@ -47,6 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadBtn = document.getElementById('uploadBtn');
   const fileInput = document.getElementById('fileInput');
 
+  // Theme toggle element
+  const themeToggle = document.getElementById('themeToggle');
+
   // State
   let uploadedFiles = []; // { id, name, dataUrl, analyzed }
   let activeFileId = null;
@@ -56,9 +59,101 @@ document.addEventListener('DOMContentLoaded', () => {
   let analysisResult = null;
   let isImageLoaded = false;
 
+  // Adjusted band box positions: { [rowId]: [centerX1, centerX2, ...] }
+  let adjustedBoxCenters = {};
+
+  // Strip drag state
+  let stripDragState = {
+    isDragging: false,
+    bandIdx: null,
+    startX: 0,
+    startCenterX: 0
+  };
+
+  // Cached strip drawing coordinates (set in drawRowStrip, used in drag handlers)
+  let stripDrawCoords = { drawX: 0, drawW: 0, srcW: 0, bbox: null };
+
   // Profile drawing margins (shared with strip for alignment)
   const PROFILE_MARGIN_LEFT = 50;
+
+  // --- Theme Management ---
+
+  function initTheme() {
+    const savedTheme = localStorage.getItem('vitreous-theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+    setTheme(theme);
+  }
+
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('vitreous-theme', theme);
+  }
+
+  function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    // Redraw profile and strip if they're visible
+    if (selectedRowId !== null && analysisResult) {
+      drawProfile();
+      drawRowStrip();
+    }
+  }
+
+  if (themeToggle) {
+    themeToggle.addEventListener('click', toggleTheme);
+  }
+
+  // Initialize theme on load
+  initTheme();
+
+  // Helper to get CSS variable value
+  function getCSSVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
   const PROFILE_MARGIN_RIGHT = 20;
+
+  // --- Uniform Box Helpers ---
+
+  function getUniformBoxSize(rowId) {
+    if (!detectionResult || !detectionResult.rows[rowId]) return { width: 0, height: 0 };
+
+    const row = detectionResult.rows[rowId];
+    let maxWidth = 0;
+
+    row.bands.forEach(band => {
+      const width = band.bbox.x2 - band.bbox.x1;
+      if (width > maxWidth) maxWidth = width;
+    });
+
+    const height = row.bbox.y2 - row.bbox.y1;
+    return { width: maxWidth, height };
+  }
+
+  function getEffectiveBoxCenters(rowId) {
+    if (adjustedBoxCenters[rowId]) {
+      return adjustedBoxCenters[rowId];
+    }
+    // Use original band centers
+    if (!detectionResult || !detectionResult.rows[rowId]) return [];
+    const row = detectionResult.rows[rowId];
+    return row.bands.map(b => b.center.x);
+  }
+
+  function getEffectiveBboxes(rowId) {
+    const centers = getEffectiveBoxCenters(rowId);
+    const { width, height } = getUniformBoxSize(rowId);
+    if (!detectionResult || !detectionResult.rows[rowId]) return [];
+    const row = detectionResult.rows[rowId];
+
+    return centers.map(centerX => ({
+      x1: Math.round(centerX - width / 2),
+      y1: row.bbox.y1,
+      x2: Math.round(centerX + width / 2),
+      y2: row.bbox.y2
+    }));
+  }
 
   // --- Initialize ---
 
@@ -123,18 +218,18 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderFilesList() {
     if (!filesList) return;
     const fileItems = uploadedFiles.map(f => `
-      <div class="file-item group cursor-pointer rounded-xl border-2 transition-all overflow-hidden ${f.id === activeFileId ? 'shadow-md' : 'border-transparent hover:shadow-sm'}"
-           style="background: #fff; ${f.id === activeFileId ? 'border-color: #da7756;' : 'border-color: transparent;'}"
+      <div class="file-item group cursor-pointer rounded-lg border-2 transition-all overflow-hidden theme-transition ${f.id === activeFileId ? 'shadow-md' : 'border-transparent hover:shadow-sm'}"
+           style="background: var(--bg-card); ${f.id === activeFileId ? 'border-color: var(--accent);' : 'border-color: transparent;'}"
            data-file-id="${f.id}">
-        <div class="aspect-[4/3] overflow-hidden" style="background: #f4ece1;">
+        <div class="aspect-[4/3] overflow-hidden" style="background: var(--bg-primary);">
           <img src="${f.dataUrl}" alt="${f.name}" class="w-full h-full object-cover" />
         </div>
         <div class="px-2.5 py-2">
-          <p class="text-xs truncate font-medium" style="color: #1a1614;">${f.name}</p>
+          <p class="text-xs truncate font-medium" style="color: var(--text-primary);">${f.name}</p>
           <div class="flex items-center gap-1.5 mt-1">
-            ${f.analyzed 
-              ? '<span class="w-2 h-2 rounded-full" style="background: #da7756;"></span><span class="text-[10px] font-medium" style="color: #c96a4a;">Analyzed</span>'
-              : '<span class="w-2 h-2 rounded-full" style="background: #ddd3c3;"></span><span class="text-[10px]" style="color: #9a9080;">Pending</span>'
+            ${f.analyzed
+              ? '<span class="w-2 h-2 rounded-full" style="background: var(--accent);"></span><span class="text-[10px] font-medium" style="color: var(--accent-dark);">Analyzed</span>'
+              : '<span class="w-2 h-2 rounded-full" style="background: var(--border-primary);"></span><span class="text-[10px]" style="color: var(--text-muted);">Pending</span>'
             }
           </div>
         </div>
@@ -168,11 +263,11 @@ document.addEventListener('DOMContentLoaded', () => {
       detectBtn.disabled = false;
       statusHint.textContent = 'Click "Analyze" to detect bands';
       resizeOverlay();
-      clearSelection();
       // Reset detection state
       detectionResult = null;
       selectedRowId = null;
       analysisResult = null;
+      adjustedBoxCenters = {}; // Clear any user adjustments
       bandCount.textContent = '--';
       rowCount.textContent = '--';
     };
@@ -404,6 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reset state
     selectedRowId = null;
     analysisResult = null;
+    adjustedBoxCenters = {}; // Clear any user adjustments
     hideAnalysisUI();
 
     try {
@@ -547,18 +643,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const relPercent = (intensity.relative * 100).toFixed(1);
 
       const tr = document.createElement('tr');
-      tr.style.cssText = 'background: #fff;';
+      tr.className = 'theme-transition';
+      tr.style.cssText = 'background: var(--bg-card);';
       tr.innerHTML = `
-        <td class="px-5 py-2.5 font-medium" style="color: #1a1614;">Band ${idx + 1}</td>
-        <td class="px-5 py-2.5 text-right font-mono" style="color: #3a3430;">${intensity.mean.toFixed(1)}</td>
-        <td class="px-5 py-2.5 text-right font-mono" style="color: #3a3430;">${intensity.integrated_density.toFixed(0)}</td>
-        <td class="px-5 py-2.5 text-right font-mono" style="color: #3a3430;">${intensity.background_corrected.toFixed(0)}</td>
+        <td class="px-5 py-2.5 font-medium" style="color: var(--text-primary);">Band ${idx + 1}</td>
+        <td class="px-5 py-2.5 text-right font-mono" style="color: var(--text-secondary);">${intensity.mean.toFixed(1)}</td>
+        <td class="px-5 py-2.5 text-right font-mono" style="color: var(--text-secondary);">${intensity.integrated_density.toFixed(0)}</td>
+        <td class="px-5 py-2.5 text-right font-mono" style="color: var(--text-secondary);">${intensity.background_corrected.toFixed(0)}</td>
         <td class="px-5 py-2.5 text-right">
           <div class="flex items-center justify-end gap-3">
-            <div class="w-20 rounded-full h-2" style="background: #ddd3c3;">
-              <div class="h-2 rounded-full" style="width: ${relPercent}%; background: #da7756;"></div>
+            <div class="w-20 rounded-full h-2" style="background: var(--border-primary);">
+              <div class="h-2 rounded-full" style="width: ${relPercent}%; background: var(--accent);"></div>
             </div>
-            <span class="font-medium font-mono w-14 text-right" style="color: #1a1614;">${relPercent}%</span>
+            <span class="font-medium font-mono w-14 text-right" style="color: var(--text-primary);">${relPercent}%</span>
           </div>
         </td>
       `;
@@ -576,6 +673,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const stats = profile.stats;
 
     if (!values || values.length === 0) return;
+
+    // Get theme-aware colors
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const bgColor = getCSSVar('--bg-card');
+    const gridColor = isDark ? 'rgba(243, 235, 224, 0.1)' : 'rgba(42, 38, 34, 0.1)';
+    const lineColor = getCSSVar('--text-primary');
+    const axisColor = getCSSVar('--text-muted');
+    const labelColor = getCSSVar('--text-secondary');
+    const fillColorStart = isDark ? 'rgba(243, 235, 224, 0.2)' : 'rgba(42, 38, 34, 0.25)';
+    const fillColorEnd = isDark ? 'rgba(243, 235, 224, 0.02)' : 'rgba(42, 38, 34, 0.03)';
 
     const parent = profileContainer;
     const dpr = window.devicePixelRatio || 1;
@@ -596,11 +703,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const graphH = displayH - marginTop - marginBottom;
 
     // Background
-    profileCtx.fillStyle = '#ffffff';
+    profileCtx.fillStyle = bgColor;
     profileCtx.fillRect(0, 0, displayW, displayH);
 
     // Grid
-    profileCtx.strokeStyle = '#e2e8f0';
+    profileCtx.strokeStyle = gridColor;
     profileCtx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const y = marginTop + (i / 4) * graphH;
@@ -616,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const range = maxVal - minVal || 1;
 
     profileCtx.beginPath();
-    profileCtx.strokeStyle = '#2a2622'; // ink-800
+    profileCtx.strokeStyle = lineColor;
     profileCtx.lineWidth = 2;
 
     for (let i = 0; i < values.length; i++) {
@@ -634,13 +741,13 @@ document.addEventListener('DOMContentLoaded', () => {
     profileCtx.lineTo(PROFILE_MARGIN_LEFT, marginTop + graphH);
     profileCtx.closePath();
     const gradient = profileCtx.createLinearGradient(0, marginTop, 0, marginTop + graphH);
-    gradient.addColorStop(0, 'rgba(42, 38, 34, 0.25)'); // ink with opacity
-    gradient.addColorStop(1, 'rgba(42, 38, 34, 0.03)');
+    gradient.addColorStop(0, fillColorStart);
+    gradient.addColorStop(1, fillColorEnd);
     profileCtx.fillStyle = gradient;
     profileCtx.fill();
 
     // Axes
-    profileCtx.strokeStyle = '#94a3b8';
+    profileCtx.strokeStyle = axisColor;
     profileCtx.lineWidth = 1;
     profileCtx.beginPath();
     profileCtx.moveTo(PROFILE_MARGIN_LEFT, marginTop);
@@ -649,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
     profileCtx.stroke();
 
     // Labels
-    profileCtx.fillStyle = '#3d3833'; // ink-700
+    profileCtx.fillStyle = labelColor;
     profileCtx.font = '11px system-ui';
     profileCtx.textAlign = 'right';
     profileCtx.fillText(maxVal.toFixed(0), PROFILE_MARGIN_LEFT - 5, marginTop + 10);
@@ -665,34 +772,83 @@ document.addEventListener('DOMContentLoaded', () => {
     profileCtx.fillText('Intensity', 0, 0);
     profileCtx.restore();
 
-    // --- Peak Annotations ---
-    // Draw band markers on profile aligned with detected bands
+    // --- Background Threshold Line ---
+    // Draw average background level as horizontal dashed line
+    if (analysisResult && analysisResult.bands && analysisResult.bands.length > 0) {
+      const avgBackground = analysisResult.bands.reduce((sum, b) => sum + (b.intensity.background || 0), 0)
+                          / analysisResult.bands.length;
+
+      // Only draw if background is within visible range
+      if (avgBackground >= minVal && avgBackground <= maxVal) {
+        const bgNormalized = (avgBackground - minVal) / range;
+        const bgY = marginTop + graphH * (1 - bgNormalized);
+
+        // Get accent color for background line
+        const accentColor = getCSSVar('--accent');
+
+        // Draw dashed background line
+        profileCtx.strokeStyle = accentColor + '80'; // 50% opacity
+        profileCtx.lineWidth = 1;
+        profileCtx.setLineDash([4, 4]);
+        profileCtx.beginPath();
+        profileCtx.moveTo(PROFILE_MARGIN_LEFT, bgY);
+        profileCtx.lineTo(PROFILE_MARGIN_LEFT + graphW, bgY);
+        profileCtx.stroke();
+        profileCtx.setLineDash([]);
+
+        // BG label on left
+        profileCtx.fillStyle = accentColor;
+        profileCtx.font = '10px system-ui';
+        profileCtx.textAlign = 'right';
+        profileCtx.fillText('BG', PROFILE_MARGIN_LEFT - 5, bgY + 3);
+      }
+    }
+
+    // --- Band Boundary Lines ---
+    // Draw vertical lines at band edges showing where pixel counting happens
+    // Uses effective bboxes (respecting user adjustments)
     if (detectionResult && selectedRowId !== null) {
       const row = detectionResult.rows[selectedRowId];
       if (row && row.bands && row.bands.length > 0) {
         const rowBbox = row.bbox;
         const rowWidth = rowBbox.x2 - rowBbox.x1;
 
-        row.bands.forEach((band, idx) => {
-          // Calculate band X position relative to profile graph
-          const bandRelX = (band.center.x - rowBbox.x1) / rowWidth;
-          const markerX = PROFILE_MARGIN_LEFT + bandRelX * graphW;
+        // Get accent color for band boundaries
+        const accentColor = getCSSVar('--accent');
 
-          // Dashed vertical line
-          profileCtx.strokeStyle = '#22c55e';
+        // Use effective bboxes (includes user adjustments)
+        const effectiveBboxes = getEffectiveBboxes(selectedRowId);
+
+        effectiveBboxes.forEach((bbox, idx) => {
+          // Calculate edge positions relative to graph
+          const leftRelX = (bbox.x1 - rowBbox.x1) / rowWidth;
+          const rightRelX = (bbox.x2 - rowBbox.x1) / rowWidth;
+          const leftX = PROFILE_MARGIN_LEFT + leftRelX * graphW;
+          const rightX = PROFILE_MARGIN_LEFT + rightRelX * graphW;
+
+          // Draw band boundary lines (burnt sienna, semi-transparent)
+          profileCtx.strokeStyle = accentColor + '66'; // 40% opacity
           profileCtx.lineWidth = 1;
-          profileCtx.setLineDash([3, 3]);
-          profileCtx.beginPath();
-          profileCtx.moveTo(markerX, marginTop);
-          profileCtx.lineTo(markerX, marginTop + graphH);
-          profileCtx.stroke();
           profileCtx.setLineDash([]);
 
-          // Band number label at top
-          profileCtx.fillStyle = '#22c55e';
+          // Left boundary
+          profileCtx.beginPath();
+          profileCtx.moveTo(leftX, marginTop);
+          profileCtx.lineTo(leftX, marginTop + graphH);
+          profileCtx.stroke();
+
+          // Right boundary
+          profileCtx.beginPath();
+          profileCtx.moveTo(rightX, marginTop);
+          profileCtx.lineTo(rightX, marginTop + graphH);
+          profileCtx.stroke();
+
+          // Band number label (centered between boundaries)
+          const centerX = (leftX + rightX) / 2;
+          profileCtx.fillStyle = accentColor;
           profileCtx.font = 'bold 10px system-ui';
           profileCtx.textAlign = 'center';
-          profileCtx.fillText(`${idx + 1}`, markerX, marginTop - 5);
+          profileCtx.fillText(`${idx + 1}`, centerX, marginTop - 5);
         });
       }
     }
@@ -705,6 +861,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const row = detectionResult.rows[selectedRowId];
     if (!row) return;
+
+    // Get theme-aware strip background (always dark for contrast)
+    const stripBg = document.documentElement.getAttribute('data-theme') === 'dark' ? '#0a0908' : '#1c1815';
 
     const bbox = row.bbox;
     const parent = stripContainer;
@@ -721,7 +880,7 @@ document.addEventListener('DOMContentLoaded', () => {
     stripCtx.scale(dpr, dpr);
 
     // Background
-    stripCtx.fillStyle = '#1a1714';
+    stripCtx.fillStyle = stripBg;
     stripCtx.fillRect(0, 0, displayW, displayH);
 
     // Calculate drawing area aligned with profile graph
@@ -736,6 +895,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const srcW = bbox.x2 - bbox.x1;
     const srcH = bbox.y2 - bbox.y1;
 
+    // Cache coordinates for drag handlers
+    stripDrawCoords = { drawX, drawW, srcW, bbox };
+
     // Draw the cropped row
     stripCtx.drawImage(
       originalImage,
@@ -743,29 +905,159 @@ document.addEventListener('DOMContentLoaded', () => {
       drawX, drawY, drawW, drawH
     );
 
-    // Draw band markers
-    if (row.bands && row.bands.length > 0) {
-      stripCtx.strokeStyle = '#22c55e';
-      stripCtx.lineWidth = 1;
-      stripCtx.setLineDash([2, 2]);
+    // Draw uniform band boxes
+    const { width: boxWidth } = getUniformBoxSize(selectedRowId);
+    const centers = getEffectiveBoxCenters(selectedRowId);
+    const accentColor = getCSSVar('--accent');
 
-      row.bands.forEach((band, idx) => {
-        // Calculate band position relative to row
-        const bandRelX = (band.center.x - bbox.x1) / srcW;
-        const markerX = drawX + bandRelX * drawW;
+    centers.forEach((centerX, idx) => {
+      // Convert image coords to canvas coords
+      const relCenterX = (centerX - bbox.x1) / srcW;
+      const canvasCenterX = drawX + relCenterX * drawW;
+      const canvasBoxWidth = (boxWidth / srcW) * drawW;
 
-        stripCtx.beginPath();
-        stripCtx.moveTo(markerX, 0);
-        stripCtx.lineTo(markerX, displayH);
-        stripCtx.stroke();
+      const boxLeft = canvasCenterX - canvasBoxWidth / 2;
 
-        // Band number
-        stripCtx.fillStyle = '#22c55e';
-        stripCtx.font = 'bold 10px system-ui';
-        stripCtx.textAlign = 'center';
-        stripCtx.fillText(`${idx + 1}`, markerX, displayH - 2);
-      });
+      // Draw box outline
+      stripCtx.strokeStyle = accentColor;
+      stripCtx.lineWidth = 2;
+      stripCtx.strokeRect(boxLeft, drawY, canvasBoxWidth, drawH);
+
+      // Semi-transparent fill to show the box area
+      stripCtx.fillStyle = accentColor + '1a'; // 10% opacity
+      stripCtx.fillRect(boxLeft, drawY, canvasBoxWidth, drawH);
+
+      // Band number label
+      stripCtx.fillStyle = accentColor;
+      stripCtx.font = 'bold 10px system-ui';
+      stripCtx.textAlign = 'center';
+      stripCtx.fillText(`${idx + 1}`, canvasCenterX, displayH - 2);
+    });
+  }
+
+  // --- Strip Canvas Drag Handlers ---
+
+  function findBoxAtPoint(canvasX) {
+    if (selectedRowId === null || !detectionResult) return null;
+
+    const { drawX, drawW, srcW, bbox } = stripDrawCoords;
+    if (!bbox) return null;
+
+    const { width: boxWidth } = getUniformBoxSize(selectedRowId);
+    const centers = getEffectiveBoxCenters(selectedRowId);
+
+    for (let i = 0; i < centers.length; i++) {
+      const relCenterX = (centers[i] - bbox.x1) / srcW;
+      const canvasCenterX = drawX + relCenterX * drawW;
+      const canvasBoxWidth = (boxWidth / srcW) * drawW;
+
+      const boxLeft = canvasCenterX - canvasBoxWidth / 2;
+      const boxRight = canvasCenterX + canvasBoxWidth / 2;
+
+      if (canvasX >= boxLeft && canvasX <= boxRight) {
+        return i;
+      }
     }
+    return null;
+  }
+
+  function onStripMouseDown(e) {
+    if (selectedRowId === null) return;
+
+    const rect = stripCanvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const canvasX = (e.clientX - rect.left);
+
+    const bandIdx = findBoxAtPoint(canvasX);
+    if (bandIdx !== null) {
+      stripDragState.isDragging = true;
+      stripDragState.bandIdx = bandIdx;
+      stripDragState.startX = canvasX;
+      stripDragState.startCenterX = getEffectiveBoxCenters(selectedRowId)[bandIdx];
+      stripCanvas.style.cursor = 'grabbing';
+    }
+  }
+
+  function onStripMouseMove(e) {
+    const rect = stripCanvas.getBoundingClientRect();
+    const canvasX = (e.clientX - rect.left);
+
+    if (stripDragState.isDragging && selectedRowId !== null) {
+      const { drawW, srcW, bbox } = stripDrawCoords;
+      if (!bbox) return;
+
+      // Calculate new center position
+      const deltaCanvas = canvasX - stripDragState.startX;
+      const deltaImage = (deltaCanvas / drawW) * srcW;
+      let newCenterX = stripDragState.startCenterX + deltaImage;
+
+      // Clamp to row bounds
+      const { width: boxWidth } = getUniformBoxSize(selectedRowId);
+      newCenterX = Math.max(bbox.x1 + boxWidth / 2, Math.min(bbox.x2 - boxWidth / 2, newCenterX));
+
+      // Update adjusted centers
+      if (!adjustedBoxCenters[selectedRowId]) {
+        adjustedBoxCenters[selectedRowId] = [...getEffectiveBoxCenters(selectedRowId)];
+      }
+      adjustedBoxCenters[selectedRowId][stripDragState.bandIdx] = newCenterX;
+
+      // Redraw
+      drawRowStrip();
+      drawProfile();
+    } else {
+      // Update cursor based on hover
+      const bandIdx = findBoxAtPoint(canvasX);
+      stripCanvas.style.cursor = bandIdx !== null ? 'grab' : 'default';
+    }
+  }
+
+  async function onStripMouseUp() {
+    if (stripDragState.isDragging) {
+      stripDragState.isDragging = false;
+      stripCanvas.style.cursor = 'default';
+
+      // Recalculate with new positions
+      await reanalyzeWithCustomBboxes();
+    }
+  }
+
+  async function reanalyzeWithCustomBboxes() {
+    if (selectedRowId === null) return;
+
+    setLoading(true, 'Recalculating...');
+
+    const bboxes = getEffectiveBboxes(selectedRowId);
+
+    try {
+      const res = await fetch('/analyze-row-custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: currentFilename,
+          row_id: selectedRowId,
+          bboxes: bboxes
+        })
+      });
+
+      if (!res.ok) throw new Error('Analysis failed');
+
+      analysisResult = await res.json();
+      populateBandTable();
+      drawProfile();
+      drawRowStrip();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Attach strip canvas event listeners
+  if (stripCanvas) {
+    stripCanvas.addEventListener('mousedown', onStripMouseDown);
+    stripCanvas.addEventListener('mousemove', onStripMouseMove);
+    stripCanvas.addEventListener('mouseup', onStripMouseUp);
+    stripCanvas.addEventListener('mouseleave', onStripMouseUp);
   }
 
   // --- Export ---
@@ -816,13 +1108,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
       demoGrid.innerHTML = '';
       if (images.length === 0) {
-        demoGrid.innerHTML = '<p class="col-span-full text-center text-slate-500">No demo images found.</p>';
+        demoGrid.innerHTML = '<p class="col-span-full text-center" style="color: var(--text-muted);">No demo images found.</p>';
         return;
       }
 
       images.forEach(filename => {
         const div = document.createElement('div');
-        div.className = 'group relative aspect-square bg-slate-100 rounded-xl overflow-hidden cursor-pointer border-2 border-transparent hover:border-indigo-500 transition-all shadow-sm hover:shadow-md';
+        div.className = 'group relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 border-transparent transition-all shadow-warm hover:shadow-warm-lg theme-transition';
+        div.style.cssText = 'background: var(--bg-tertiary);';
+        div.onmouseenter = () => div.style.borderColor = 'var(--accent)';
+        div.onmouseleave = () => div.style.borderColor = 'transparent';
 
         const img = document.createElement('img');
         img.src = `/static/demo_images/${filename}`;
@@ -844,7 +1139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     } catch (e) {
       console.error(e);
-      demoGrid.innerHTML = '<p class="col-span-full text-center text-red-500">Error loading images.</p>';
+      demoGrid.innerHTML = '<p class="col-span-full text-center" style="color: var(--accent);">Error loading images.</p>';
     }
   }
 
@@ -856,6 +1151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     detectionResult = null;
     selectedRowId = null;
     analysisResult = null;
+    adjustedBoxCenters = {}; // Clear any user adjustments
     hideAnalysisUI();
     bandCount.textContent = '--';
     rowCount.textContent = '--';

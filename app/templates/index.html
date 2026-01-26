@@ -15,7 +15,7 @@
                     colors: {
                         cream: {
                             50: '#f9f4ef',   /* vintage-paper */
-                            100: '#f4ece1',  /* vintage-cream */
+                            100: '#f3ebe0',  /* vintage-cream - slightly richer */
                             200: '#ebe3d6',
                             300: '#ddd3c3',
                             400: '#c9bca8',
@@ -23,12 +23,13 @@
                         ink: {
                             600: '#3a3430',
                             700: '#2a2622',
-                            800: '#1a1614',  /* vintage-ink */
-                            900: '#0f0e0c',
+                            800: '#1c1815',  /* vintage-ink - warmer */
+                            900: '#12100e',  /* sepia-black - warmer */
                         },
                         accent: {
-                            500: '#da7756',  /* claude orange */
-                            600: '#c96a4a',
+                            400: '#c47252',  /* burnt sienna light */
+                            500: '#a85a3b',  /* burnt sienna primary */
+                            600: '#8f4d32',  /* burnt sienna dark */
                         }
                     }
                 }
@@ -36,39 +37,213 @@
         }
     </script>
     <style>
-        body { font-family: 'Inter', system-ui, sans-serif; }
-        .font-serif { font-family: 'Cormorant Garamond', Georgia, serif; }
-        
+        /* Theme CSS Variables */
+        :root {
+            /* Light theme (default) */
+            --bg-primary: #f3ebe0;
+            --bg-secondary: #f9f4ef;
+            --bg-tertiary: #ebe3d6;
+            --bg-card: #ffffff;
+            --bg-canvas: #12100e;
+            --bg-canvas-overlay: rgba(18, 16, 14, 0.9);
+
+            --text-primary: #1c1815;
+            --text-secondary: #3a3430;
+            --text-muted: #6b635a;
+            --text-faint: rgba(58, 52, 48, 0.5);
+
+            --border-primary: #ddd3c3;
+            --border-secondary: #ebe3d6;
+            --border-hairline: rgba(221, 211, 195, 0.7);
+
+            --accent-light: #c47252;
+            --accent: #a85a3b;
+            --accent-dark: #8f4d32;
+
+            --scrollbar-track: #f0ebe3;
+            --scrollbar-thumb: #d4c9b8;
+            --scrollbar-thumb-hover: #b8a992;
+
+            --slider-track: rgba(42, 38, 34, 0.3);
+            --slider-thumb-bg: #f8f5f0;
+            --slider-thumb-border: #2a2622;
+
+            --shadow-color: 42, 38, 34;
+
+            /* Canvas-specific (always dark) */
+            --canvas-text: #f3ebe0;
+            --canvas-text-muted: rgba(243, 235, 224, 0.7);
+            --canvas-border: rgba(42, 38, 34, 0.5);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #12100e;
+            --bg-secondary: #1c1815;
+            --bg-tertiary: #252220;
+            --bg-card: #1c1815;
+            --bg-canvas: #0a0908;
+            --bg-canvas-overlay: rgba(10, 9, 8, 0.9);
+
+            --text-primary: #f3ebe0;
+            --text-secondary: #d4c9b8;
+            --text-muted: #9a9080;
+            --text-faint: rgba(212, 201, 184, 0.5);
+
+            --border-primary: #2a2622;
+            --border-secondary: #352f2a;
+            --border-hairline: rgba(58, 52, 48, 0.7);
+
+            --scrollbar-track: #1c1815;
+            --scrollbar-thumb: #3a3430;
+            --scrollbar-thumb-hover: #4a4440;
+
+            --slider-track: rgba(243, 235, 224, 0.2);
+            --slider-thumb-bg: #2a2622;
+            --slider-thumb-border: #f3ebe0;
+
+            --shadow-color: 0, 0, 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .font-serif {
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-feature-settings: "onum" 1; /* old-style figures */
+        }
+
+        /* Section labels - refined small caps */
+        .section-label {
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-variant: small-caps;
+            letter-spacing: 0.15em;
+            font-weight: 500;
+            font-size: 0.8125rem;
+            color: var(--text-primary);
+        }
+
+        /* Themed backgrounds */
+        .bg-themed-primary { background-color: var(--bg-primary); }
+        .bg-themed-secondary { background-color: var(--bg-secondary); }
+        .bg-themed-tertiary { background-color: var(--bg-tertiary); }
+        .bg-themed-card { background-color: var(--bg-card); }
+        .bg-themed-canvas { background-color: var(--bg-canvas); }
+
+        /* Themed text */
+        .text-themed-primary { color: var(--text-primary); }
+        .text-themed-secondary { color: var(--text-secondary); }
+        .text-themed-muted { color: var(--text-muted); }
+        .text-themed-faint { color: var(--text-faint); }
+
+        /* Themed borders */
+        .border-themed-primary { border-color: var(--border-primary); }
+        .border-themed-secondary { border-color: var(--border-secondary); }
+        .border-themed-hairline { border-color: var(--border-hairline); }
+
         /* Elegant scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f0ebe3; }
-        ::-webkit-scrollbar-thumb { background: #d4c9b8; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #b8a992; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
-        /* Range slider - cream theme */
+        /* Range slider */
         input[type=range] { -webkit-appearance: none; background: transparent; }
-        input[type=range]::-webkit-slider-runnable-track { height: 3px; background: rgba(42,38,34,0.3); border-radius: 2px; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #f8f5f0; border: 2px solid #2a2622; border-radius: 50%; margin-top: -6px; cursor: pointer; }
+        input[type=range]::-webkit-slider-runnable-track { height: 3px; background: var(--slider-track); border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--slider-thumb-bg); border: 2px solid var(--slider-thumb-border); border-radius: 50%; margin-top: -6px; cursor: pointer; }
+
+        /* Warm shadows using CSS variables */
+        .shadow-warm {
+            box-shadow: 0 4px 6px -1px rgba(var(--shadow-color), 0.1),
+                        0 2px 4px -1px rgba(var(--shadow-color), 0.06);
+        }
+        .shadow-warm-lg {
+            box-shadow: 0 10px 15px -3px rgba(var(--shadow-color), 0.1),
+                        0 4px 6px -2px rgba(var(--shadow-color), 0.05);
+        }
+
+        /* Dark theme needs stronger shadows */
+        [data-theme="dark"] .shadow-warm {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3),
+                        0 2px 4px -1px rgba(0, 0, 0, 0.2);
+        }
+        [data-theme="dark"] .shadow-warm-lg {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4),
+                        0 4px 6px -2px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Hairline borders */
+        .border-hairline {
+            border-color: var(--border-hairline);
+        }
+
+        /* Double-rule divider for major sections */
+        .section-divider {
+            border-top: 1px solid var(--border-primary);
+            border-bottom: 1px solid var(--border-primary);
+            height: 4px;
+            background: transparent;
+        }
+
+        /* Theme toggle button */
+        .theme-toggle {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            border-radius: 10px;
+            background: var(--border-primary);
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            border: none;
+            padding: 0;
+        }
+        .theme-toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            transition: transform 0.3s ease, background-color 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        [data-theme="dark"] .theme-toggle {
+            background: var(--accent);
+        }
+        [data-theme="dark"] .theme-toggle::after {
+            transform: translateX(16px);
+            background: var(--bg-primary);
+        }
+
+        /* Transition for themed elements */
+        .theme-transition {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
 
         .fade-in { animation: fadeIn 0.25s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 
-<body class="bg-cream-100 h-screen flex flex-col text-sm" style="background-color: #f4ece1;">
+<body class="h-screen flex flex-col text-sm">
 
     <!-- Header -->
-    <header class="h-12 border-b border-cream-300 flex items-center px-5 shrink-0" style="background-color: #f9f4ef;">
+    <header class="h-12 border-b border-themed-primary flex items-center px-5 shrink-0 theme-transition bg-themed-secondary">
         <div class="flex items-center gap-3">
             <img src="/static/logo.svg" alt="Vitreous" class="w-6 h-6">
-            <span class="text-xl font-serif font-semibold text-ink-800 tracking-wide">Vitreous</span>
-            <span class="text-xs text-ink-600/60 ml-1 tracking-wide">by Mansus</span>
+            <span class="text-xl font-serif font-semibold text-themed-primary" style="letter-spacing: 0.15em;">Vitreous</span>
+            <span class="text-xs text-themed-faint ml-1 tracking-wide">by Mansus</span>
         </div>
         <div class="ml-auto flex items-center gap-5">
-            <span id="modelStatus" class="text-xs text-ink-700/50 tracking-wide">Loading model...</span>
-            <button id="demoBtn" class="text-sm text-ink-700 hover:text-ink-900 transition-colors font-medium">
+            <span id="modelStatus" class="text-xs text-themed-faint tracking-wide">Loading model...</span>
+            <button id="demoBtn" class="text-sm text-themed-secondary hover:text-themed-primary transition-colors font-medium">
                 Gallery
             </button>
+            <button id="themeToggle" class="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
         </div>
     </header>
 
@@ -76,10 +251,10 @@
     <div class="flex min-h-0" style="flex: 2;">
 
         <!-- Sidebar: Library -->
-        <aside class="w-52 border-r border-cream-300 flex flex-col shrink-0 min-h-0 overflow-hidden" style="background-color: #f9f4ef;">
-            <div class="h-10 px-4 flex items-center justify-between border-b border-cream-200">
-                <span class="text-xs font-semibold text-ink-800 uppercase tracking-widest">Library</span>
-                <button id="uploadBtn" class="p-1.5 text-ink-600 hover:text-ink-900 hover:bg-cream-200 rounded-lg transition-colors" title="Upload">
+        <aside class="w-52 border-r border-themed-primary flex flex-col shrink-0 min-h-0 overflow-hidden theme-transition bg-themed-secondary">
+            <div class="h-10 px-4 flex items-center justify-between border-b border-themed-secondary">
+                <span class="section-label">Library</span>
+                <button id="uploadBtn" class="p-1.5 text-themed-muted hover:text-themed-primary hover:bg-themed-tertiary rounded transition-colors" title="Upload">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
@@ -87,50 +262,50 @@
             </div>
             <div id="filesList" class="flex-1 overflow-y-auto p-2 space-y-2">
                 <div id="filesEmptyState" class="flex flex-col items-center justify-center h-full text-center py-12">
-                    <svg class="w-12 h-12 text-cream-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-12 h-12 text-themed-muted mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
-                    <p class="text-ink-600/50 text-xs">No images yet</p>
-                    <p class="text-ink-600/40 text-xs mt-1">Upload or load a sample</p>
+                    <p class="text-themed-faint text-xs">No images yet</p>
+                    <p class="text-themed-faint text-xs mt-1">Upload or load a sample</p>
                 </div>
             </div>
             <input type="file" id="fileInput" class="hidden" accept="image/*" multiple />
         </aside>
 
         <!-- Center: Canvas Area -->
-        <main class="flex-1 flex flex-col overflow-hidden bg-ink-900 min-h-0">
-            
+        <main class="flex-1 flex flex-col overflow-hidden min-h-0 bg-themed-canvas">
+
             <!-- Toolbar -->
-            <div class="h-10 bg-ink-800/50 border-b border-ink-800 flex items-center px-4 gap-4 shrink-0">
-                <button id="selectDemoBtn" class="flex items-center gap-2 px-3 py-1.5 text-cream-300 hover:text-cream-100 hover:bg-ink-700 rounded-lg transition-colors text-xs">
+            <div class="h-10 border-b flex items-center px-4 gap-4 shrink-0" style="background-color: var(--bg-canvas-overlay); border-color: var(--canvas-border);">
+                <button id="selectDemoBtn" class="flex items-center gap-2 px-3 py-1.5 rounded transition-colors text-xs" style="color: var(--canvas-text-muted);" onmouseover="this.style.color='var(--canvas-text)';this.style.backgroundColor='rgba(255,255,255,0.1)'" onmouseout="this.style.color='var(--canvas-text-muted)';this.style.backgroundColor='transparent'">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     Load Sample
                 </button>
-                <div class="h-5 w-px bg-ink-700"></div>
-                <div class="flex items-center gap-4 text-xs text-cream-400/70">
-                    <span class="font-mono text-cream-300" id="imgRes">-- × --</span>
-                    <span class="text-ink-600">|</span>
-                    <span>Bands: <span class="text-cream-200 font-medium" id="bandCount">--</span></span>
-                    <span>Rows: <span class="text-cream-200 font-medium" id="rowCount">--</span></span>
+                <div class="h-5 w-px" style="background-color: var(--canvas-border);"></div>
+                <div class="flex items-center gap-4 text-xs" style="color: var(--canvas-text-muted);">
+                    <span class="font-mono" style="color: var(--canvas-text);" id="imgRes">-- × --</span>
+                    <span style="color: var(--canvas-border);">|</span>
+                    <span>Bands: <span class="font-medium" style="color: var(--canvas-text);" id="bandCount">--</span></span>
+                    <span>Rows: <span class="font-medium" style="color: var(--canvas-text);" id="rowCount">--</span></span>
                 </div>
             </div>
 
             <!-- Canvas -->
             <div class="flex-1 relative flex items-center justify-center overflow-hidden" id="visualizationCanvas">
                 <div id="emptyState" class="text-center">
-                    <svg class="w-20 h-20 text-ink-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-20 h-20 mx-auto mb-4" style="color: var(--canvas-border);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
                             d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p class="text-cream-500/50 text-sm font-light">Load an image to begin analysis</p>
+                    <p class="text-sm font-light" style="color: var(--canvas-text-muted);">Load an image to begin analysis</p>
                 </div>
-                <div id="loadingState" class="hidden absolute inset-0 bg-ink-900/95 z-50 flex items-center justify-center">
+                <div id="loadingState" class="hidden absolute inset-0 z-50 flex items-center justify-center" style="background-color: var(--bg-canvas-overlay);">
                     <div class="flex flex-col items-center gap-3">
-                        <div class="animate-spin rounded-full h-8 w-8 border-2 border-cream-600 border-t-cream-200"></div>
-                        <span class="text-cream-300 text-sm" id="loadingText">Processing...</span>
+                        <div class="animate-spin rounded-full h-8 w-8 border-2" style="border-color: var(--canvas-border); border-top-color: var(--canvas-text);"></div>
+                        <span class="text-sm" style="color: var(--canvas-text);" id="loadingText">Processing...</span>
                     </div>
                 </div>
                 <div id="canvasContainer" class="hidden w-full h-full relative">
@@ -140,14 +315,14 @@
 
                 <!-- Floating Controls -->
                 <div class="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-                    <div class="flex items-center gap-3 bg-ink-900/90 backdrop-blur-sm rounded-xl px-4 py-2.5 pointer-events-auto border border-ink-700 shadow-lg">
-                        <span class="text-cream-400/70 text-xs uppercase tracking-wider">Threshold</span>
+                    <div class="flex items-center gap-3 backdrop-blur-sm rounded-lg px-4 py-2.5 pointer-events-auto shadow-warm-lg" style="background-color: var(--bg-canvas-overlay); border: 1px solid var(--canvas-border);">
+                        <span class="text-xs uppercase tracking-wider" style="color: var(--canvas-text-muted);">Threshold</span>
                         <input type="range" id="confidenceSlider" min="10" max="90" value="50" class="w-24">
-                        <span class="text-cream-200 text-xs font-mono w-8" id="confidenceValue">0.50</span>
+                        <span class="text-xs font-mono w-8" style="color: var(--canvas-text);" id="confidenceValue">0.50</span>
                     </div>
                     <button id="detectBtn"
-                        class="flex items-center gap-2 px-5 py-2.5 text-white rounded-xl transition-all text-sm font-semibold pointer-events-auto disabled:opacity-40 disabled:cursor-not-allowed shadow-lg"
-                        style="background: linear-gradient(135deg, #da7756 0%, #c96a4a 100%);"
+                        class="flex items-center gap-2 px-5 py-2.5 text-white rounded-lg transition-all text-sm font-semibold pointer-events-auto disabled:opacity-40 disabled:cursor-not-allowed shadow-warm-lg"
+                        style="background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);"
                         disabled>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -157,54 +332,54 @@
                 </div>
 
                 <!-- Status Bar -->
-                <div class="absolute bottom-4 left-4 bg-ink-900/90 backdrop-blur-sm rounded-lg px-4 py-2 border border-ink-700">
-                    <span id="statusHint" class="text-cream-400/80 text-xs">Ready</span>
+                <div class="absolute bottom-4 left-4 backdrop-blur-sm rounded px-4 py-2" style="background-color: var(--bg-canvas-overlay); border: 1px solid var(--canvas-border);">
+                    <span id="statusHint" class="text-xs" style="color: var(--canvas-text-muted);">Ready</span>
                 </div>
             </div>
         </main>
 
         <!-- Right Panel: Results -->
-        <aside class="flex-1 bg-cream-50 border-l border-cream-300 flex flex-col min-h-0 overflow-hidden" style="background-color: #f9f4ef;">
-            <div class="h-10 px-4 flex items-center justify-between border-b border-cream-200">
-                <span class="text-xs font-semibold text-ink-800 uppercase tracking-widest">Analysis</span>
-                <span id="selectedRowBadge" class="hidden px-2.5 py-1 text-white text-xs rounded-full font-medium" style="background-color: #da7756;">Row 1</span>
+        <aside class="flex-1 border-l border-themed-primary flex flex-col min-h-0 overflow-hidden theme-transition bg-themed-secondary">
+            <div class="h-10 px-4 flex items-center justify-between border-b border-themed-secondary">
+                <span class="section-label">Analysis</span>
+                <span id="selectedRowBadge" class="hidden px-2.5 py-1 text-white text-xs rounded-full font-medium" style="background-color: var(--accent);">Row 1</span>
             </div>
-            
-            <div class="flex-1 flex flex-col p-3 gap-3 overflow-y-auto bg-cream-100/50">
+
+            <div class="flex-1 flex flex-col p-3 gap-3 overflow-y-auto theme-transition" style="background-color: color-mix(in srgb, var(--bg-primary) 50%, transparent);">
                 <!-- Profile Graph -->
-                <div id="profileContainer" class="flex-1 min-h-[200px] bg-white rounded-xl border border-cream-200 p-3 shadow-sm">
+                <div id="profileContainer" class="flex-1 min-h-[200px] rounded-lg border border-hairline p-3 shadow-warm theme-transition bg-themed-card">
                     <div id="profileEmptyState" class="flex flex-col items-center justify-center h-full text-center">
-                        <svg class="w-10 h-10 text-cream-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-10 h-10 text-themed-muted mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                 d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
-                        <p class="text-ink-600/40 text-sm font-serif">Intensity profile</p>
+                        <p class="text-themed-faint text-sm font-serif">Intensity profile</p>
                     </div>
                     <canvas id="profileCanvas" class="hidden w-full h-full"></canvas>
                 </div>
-                
+
                 <!-- Strip Preview -->
-                <div id="stripContainer" class="h-20 bg-white rounded-xl border border-cream-200 overflow-hidden shadow-sm shrink-0">
+                <div id="stripContainer" class="h-20 rounded-lg border border-hairline overflow-hidden shadow-warm shrink-0 theme-transition bg-themed-card">
                     <div id="stripEmptyState" class="flex items-center justify-center h-full">
-                        <p class="text-ink-600/40 text-xs">Selected row preview</p>
+                        <p class="text-themed-faint text-xs">Selected row preview</p>
                     </div>
                     <canvas id="stripCanvas" class="hidden w-full h-full"></canvas>
                 </div>
             </div>
 
             <!-- Subtitle -->
-            <div class="px-4 py-3 border-t border-cream-200 bg-cream-50">
-                <p id="profileSubtitle" class="text-ink-600/60 text-xs">Click a detected row to view profile</p>
+            <div class="px-4 py-3 border-t border-themed-secondary theme-transition bg-themed-secondary">
+                <p id="profileSubtitle" class="text-themed-muted text-xs">Click a detected row to view profile</p>
             </div>
         </aside>
     </div>
 
-    <!-- Bottom Panel: Band Table (1/4 height) -->
-    <div id="analysisPanel" class="border-t border-cream-300 flex flex-col overflow-hidden" style="flex: 1; background-color: #f9f4ef;">
-        <div class="h-10 px-5 flex items-center border-b border-cream-200 shrink-0">
-            <span class="text-xs font-semibold text-ink-800 uppercase tracking-widest">Band Measurements</span>
-            <span id="selectedRowLabel" class="ml-3 px-2.5 py-1 text-white text-xs rounded-full font-medium hidden" style="background-color: #da7756;">Row 1</span>
-            <button id="exportBtn" class="ml-auto flex items-center gap-2 px-3 py-1.5 text-ink-700 hover:text-ink-900 hover:bg-cream-200 rounded-lg transition-colors text-xs font-medium opacity-50" disabled>
+    <!-- Bottom Panel: Band Table -->
+    <div id="analysisPanel" class="border-t border-themed-primary flex flex-col overflow-hidden theme-transition bg-themed-secondary" style="flex: 0.75;">
+        <div class="h-10 px-5 flex items-center border-b border-themed-secondary shrink-0">
+            <span class="section-label">Band Measurements</span>
+            <span id="selectedRowLabel" class="ml-3 px-2.5 py-1 text-white text-xs rounded-full font-medium hidden" style="background-color: var(--accent);">Row 1</span>
+            <button id="exportBtn" class="ml-auto flex items-center gap-2 px-3 py-1.5 text-themed-secondary hover:text-themed-primary hover:bg-themed-tertiary rounded transition-colors text-xs font-medium opacity-50" disabled>
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
@@ -213,63 +388,69 @@
         </div>
         <div class="flex-1 overflow-auto">
             <table class="w-full text-sm">
-                <thead class="sticky top-0" style="background-color: #ebe3d6;">
+                <thead class="sticky top-0 theme-transition bg-themed-tertiary">
                     <tr>
-                        <th class="px-5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">Band</th>
-                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">Mean</th>
-                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">Integrated</th>
-                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">BG Corrected</th>
-                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider" style="color: #3a3430;">Relative</th>
+                        <th class="px-5 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-themed-secondary">Band</th>
+                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-themed-secondary">Mean</th>
+                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-themed-secondary">Integrated</th>
+                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-themed-secondary">BG Corrected</th>
+                        <th class="px-5 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-themed-secondary">Relative</th>
                     </tr>
                 </thead>
-                <tbody id="bandTableBody" class="divide-y divide-cream-200">
+                <tbody id="bandTableBody" class="divide-y divide-themed-secondary">
                     <!-- Skeleton rows shown by default -->
                 </tbody>
-                <tbody id="bandTableSkeleton" class="divide-y divide-cream-200">
-                    <tr style="background: #fff;">
-                        <td class="px-5 py-3"><div class="h-4 w-16 rounded" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-12 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-24 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                <tbody id="bandTableSkeleton" class="divide-y divide-themed-secondary">
+                    <tr class="theme-transition bg-themed-card">
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-12 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-24 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
                     </tr>
-                    <tr style="background: #fff;">
-                        <td class="px-5 py-3"><div class="h-4 w-16 rounded" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-12 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-24 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                    <tr class="theme-transition bg-themed-card">
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-12 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-24 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
                     </tr>
-                    <tr style="background: #fff;">
-                        <td class="px-5 py-3"><div class="h-4 w-16 rounded" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-12 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
-                        <td class="px-5 py-3"><div class="h-4 w-24 rounded ml-auto" style="background: #ddd3c3; opacity: 0.5;"></div></td>
+                    <tr class="theme-transition bg-themed-card">
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-12 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-16 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
+                        <td class="px-5 py-3"><div class="h-4 w-24 rounded ml-auto bg-themed-tertiary opacity-50"></div></td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
 
+    <!-- Footer -->
+    <footer class="h-7 border-t border-themed-hairline flex items-center justify-between px-5 shrink-0 text-xs theme-transition bg-themed-secondary">
+        <span class="text-themed-faint font-serif" style="font-variant: small-caps; letter-spacing: 0.1em;">Mansus</span>
+        <span class="text-themed-faint">v0.1.0</span>
+    </footer>
+
     <!-- Demo Modal -->
-    <div id="demoModal" class="hidden fixed inset-0 z-[100] bg-ink-900/80 backdrop-blur-sm items-center justify-center p-6 opacity-0 transition-opacity duration-200">
-        <div class="bg-cream-50 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[70vh] flex flex-col overflow-hidden border border-cream-300" id="demoModalContent">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-cream-200">
+    <div id="demoModal" class="hidden fixed inset-0 z-[100] backdrop-blur-sm items-center justify-center p-6 opacity-0 transition-opacity duration-200" style="background-color: rgba(18, 16, 14, 0.8);">
+        <div class="rounded-xl shadow-warm-lg w-full max-w-3xl max-h-[70vh] flex flex-col overflow-hidden border border-hairline theme-transition bg-themed-secondary" id="demoModalContent">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-themed-secondary">
                 <div>
-                    <h3 class="text-lg font-serif font-semibold text-ink-800">Sample Images</h3>
-                    <p class="text-ink-600/60 text-sm mt-0.5">Select a Western blot to analyze</p>
+                    <h3 class="text-lg font-serif font-semibold text-themed-primary">Sample Images</h3>
+                    <p class="text-themed-muted text-sm mt-0.5">Select a Western blot to analyze</p>
                 </div>
-                <button id="closeDemoModalBtn" class="p-2 text-ink-600 hover:text-ink-900 rounded-lg hover:bg-cream-200 transition-colors">
+                <button id="closeDemoModalBtn" class="p-2 text-themed-muted hover:text-themed-primary rounded hover:bg-themed-tertiary transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
-            <div class="flex-1 p-6 overflow-y-auto bg-cream-100">
+            <div class="flex-1 p-6 overflow-y-auto theme-transition bg-themed-primary">
                 <div id="demoGrid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div class="col-span-full flex justify-center py-8">
-                        <div class="animate-spin rounded-full h-8 w-8 border-2 border-cream-400 border-t-ink-800"></div>
+                        <div class="animate-spin rounded-full h-8 w-8 border-2 border-themed-muted" style="border-top-color: var(--text-primary);"></div>
                     </div>
                 </div>
             </div>
