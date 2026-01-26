@@ -57,7 +57,7 @@ def detect_bands(image_path: str, confidence_threshold: float = 0.5) -> list[Det
 
     bands: list[DetectedBand] = []
 
-    for i, (box, score) in enumerate(zip(boxes, scores)):
+    for i, (box, score) in enumerate(zip(boxes, scores, strict=True)):
         if score < confidence_threshold:
             continue
 

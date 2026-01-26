@@ -6,7 +6,7 @@ Groups detected bands into rows based on Y-coordinate proximity.
 
 from typing import TypedDict
 
-from app.services.band_detection import DetectedBand, BBox
+from app.services.band_detection import BBox, DetectedBand
 
 
 class Row(TypedDict):
@@ -17,7 +17,7 @@ class Row(TypedDict):
     bands: list[DetectedBand]
 
 
-def group_bands_into_rows(bands: list[DetectedBand], y_tolerance: float = None) -> list[Row]:
+def group_bands_into_rows(bands: list[DetectedBand], y_tolerance: float | None = None) -> list[Row]:
     """
     Group bands into rows based on Y-coordinate proximity.
 

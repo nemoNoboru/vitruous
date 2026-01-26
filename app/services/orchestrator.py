@@ -4,13 +4,13 @@ Orchestrator Service
 Coordinates band detection, row grouping, and densitometry analysis.
 """
 
-from typing import TypedDict, Optional
+from typing import TypedDict
 
 from PIL import Image
 
-from app.services.band_detection import detect_bands, DetectedBand
-from app.services.row_grouping import group_bands_into_rows, Row
-from app.services.densitometry import calculate_all_band_intensities, calculate_profile, BandWithIntensity, Profile
+from app.services.band_detection import DetectedBand, detect_bands
+from app.services.densitometry import BandWithIntensity, Profile, calculate_all_band_intensities, calculate_profile
+from app.services.row_grouping import Row, group_bands_into_rows
 
 
 class DetectionResult(TypedDict):
@@ -35,7 +35,7 @@ _detection_cache: dict[str, list[Row]] = {}
 def detect_blot(
     image_path: str,
     confidence_threshold: float = 0.5,
-    y_tolerance: Optional[float] = None
+    y_tolerance: float | None = None
 ) -> DetectionResult:
     """
     Detect all bands in an image and group them into rows.
@@ -75,7 +75,7 @@ def analyze_row(
     image_path: str,
     row_id: int,
     confidence_threshold: float = 0.5
-) -> Optional[AnalysisResult]:
+) -> AnalysisResult | None:
     """
     Analyze a specific row's band intensities.
 
@@ -116,7 +116,78 @@ def analyze_row(
     }
 
 
-def clear_cache(image_path: Optional[str] = None) -> None:
+def analyze_row_with_custom_bboxes(
+    image_path: str,
+    row_id: int,
+    custom_bboxes: list[dict],
+    confidence_threshold: float = 0.5
+) -> AnalysisResult | None:
+    """
+    Analyze a row using user-adjusted band boundaries.
+
+    Args:
+        image_path: Path to the western blot image
+        row_id: Which row to analyze
+        custom_bboxes: List of custom bounding boxes [{x1, y1, x2, y2}, ...]
+        confidence_threshold: Minimum confidence if re-detection needed
+
+    Returns:
+        Analysis result with recalculated intensity metrics
+    """
+    # Check cache first, re-detect if needed
+    if image_path not in _detection_cache:
+        detect_blot(image_path, confidence_threshold)
+
+    rows = _detection_cache.get(image_path, [])
+
+    # Find the requested row
+    target_row = None
+    for row in rows:
+        if row['row_id'] == row_id:
+            target_row = row
+            break
+
+    if target_row is None:
+        return None
+
+    # Create modified bands with custom bboxes
+    modified_bands: list[DetectedBand] = []
+    original_bands = target_row['bands']
+
+    for i, bbox in enumerate(custom_bboxes):
+        confidence = original_bands[i]['confidence'] if i < len(original_bands) else 1.0
+        modified_band: DetectedBand = {
+            'id': i,
+            'bbox': {
+                'x1': int(bbox['x1']),
+                'y1': int(bbox['y1']),
+                'x2': int(bbox['x2']),
+                'y2': int(bbox['y2']),
+            },
+            'confidence': confidence,
+            'center': {
+                'x': (bbox['x1'] + bbox['x2']) / 2,
+                'y': (bbox['y1'] + bbox['y2']) / 2,
+            },
+            'width': bbox['x2'] - bbox['x1'],
+            'height': bbox['y2'] - bbox['y1'],
+        }
+        modified_bands.append(modified_band)
+
+    # Calculate intensities with custom bboxes
+    bands_with_intensity = calculate_all_band_intensities(image_path, modified_bands)
+
+    # Profile stays the same (full row region)
+    profile = calculate_profile(image_path, target_row['bbox'])
+
+    return {
+        'row_id': row_id,
+        'bands': bands_with_intensity,
+        'profile': profile,
+    }
+
+
+def clear_cache(image_path: str | None = None) -> None:
     """
     Clear the detection cache.
 

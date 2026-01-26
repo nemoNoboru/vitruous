@@ -9,7 +9,7 @@ from typing import TypedDict
 import numpy as np
 from PIL import Image
 
-from app.services.band_detection import DetectedBand, BBox
+from app.services.band_detection import BBox, DetectedBand
 
 
 class IntensityMetrics(TypedDict):
@@ -18,6 +18,7 @@ class IntensityMetrics(TypedDict):
     max: float
     min: float
     integrated_density: float
+    background: float
     background_corrected: float
     relative: float
 
@@ -70,6 +71,7 @@ def calculate_band_intensity(image: np.ndarray, band: DetectedBand) -> Intensity
             'max': 0.0,
             'min': 0.0,
             'integrated_density': 0.0,
+            'background': 0.0,
             'background_corrected': 0.0,
             'relative': 0.0,
         }
@@ -100,6 +102,7 @@ def calculate_band_intensity(image: np.ndarray, band: DetectedBand) -> Intensity
         'max': round(max_val, 2),
         'min': round(min_val, 2),
         'integrated_density': round(integrated_density, 2),
+        'background': round(background, 2),
         'background_corrected': round(background_corrected, 2),
         'relative': 0.0,  # Will be normalized later
     }
