@@ -10,6 +10,11 @@ bp = Blueprint('main', __name__)
 
 
 @bp.route('/')
+def landing():
+    return render_template('landing.html')
+
+
+@bp.route('/app')
 def index():
     return render_template('index.html')
 

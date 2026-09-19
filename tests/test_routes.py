@@ -9,16 +9,30 @@ from PIL import Image
 
 
 class TestIndexRoute:
-    """Test the main index page."""
+    """Test the landing page."""
 
     def test_index_returns_200(self, client):
-        """Test that index page loads successfully."""
+        """Test that the landing page loads successfully."""
         response = client.get('/')
         assert response.status_code == 200
 
     def test_index_returns_html(self, client):
-        """Test that index returns HTML content."""
+        """Test that the landing page returns HTML content."""
         response = client.get('/')
+        assert b'<!DOCTYPE html>' in response.data or b'<html' in response.data
+
+
+class TestAppRoute:
+    """Test the main tool page."""
+
+    def test_app_returns_200(self, client):
+        """Test that the app page loads successfully."""
+        response = client.get('/app')
+        assert response.status_code == 200
+
+    def test_app_returns_html(self, client):
+        """Test that the app page returns HTML content."""
+        response = client.get('/app')
         assert b'<!DOCTYPE html>' in response.data or b'<html' in response.data
 
 

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vitreous | Western Blot Quantification</title>
+    <meta name="description" content="Automated western blot band detection and densitometry. Upload a blot, get precise, reproducible band measurements in seconds.">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <script defer src="https://umami.brunocabado.com/script.js" data-website-id="49c3f664-355a-4c90-85bf-5577a1e90287"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cream: {
+                            50: '#f9f4ef',
+                            100: '#f3ebe0',
+                            200: '#ebe3d6',
+                            300: '#ddd3c3',
+                            400: '#c9bca8',
+                        },
+                        ink: {
+                            600: '#3a3430',
+                            700: '#2a2622',
+                            800: '#1c1815',
+                            900: '#12100e',
+                        },
+                        accent: {
+                            400: '#c47252',
+                            500: '#a85a3b',
+                            600: '#8f4d32',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --bg-primary: #f3ebe0;
+            --bg-secondary: #f9f4ef;
+            --bg-tertiary: #ebe3d6;
+            --bg-card: #ffffff;
+            --bg-canvas: #12100e;
+
+            --text-primary: #1c1815;
+            --text-secondary: #3a3430;
+            --text-muted: #6b635a;
+            --text-faint: rgba(58, 52, 48, 0.5);
+
+            --border-primary: #ddd3c3;
+            --border-secondary: #ebe3d6;
+            --border-hairline: rgba(221, 211, 195, 0.7);
+
+            --accent-light: #c47252;
+            --accent: #a85a3b;
+            --accent-dark: #8f4d32;
+
+            --shadow-color: 42, 38, 34;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #12100e;
+            --bg-secondary: #1c1815;
+            --bg-tertiary: #252220;
+            --bg-card: #1c1815;
+            --bg-canvas: #0a0908;
+
+            --text-primary: #f3ebe0;
+            --text-secondary: #d4c9b8;
+            --text-muted: #9a9080;
+            --text-faint: rgba(212, 201, 184, 0.5);
+
+            --border-primary: #2a2622;
+            --border-secondary: #352f2a;
+            --border-hairline: rgba(58, 52, 48, 0.7);
+
+            --shadow-color: 0, 0, 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .font-serif {
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-feature-settings: "onum" 1;
+        }
+        .section-label {
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-variant: small-caps;
+            letter-spacing: 0.15em;
+            font-weight: 500;
+            font-size: 0.8125rem;
+            color: var(--accent);
+        }
+        .bg-themed-primary { background-color: var(--bg-primary); }
+        .bg-themed-secondary { background-color: var(--bg-secondary); }
+        .bg-themed-tertiary { background-color: var(--bg-tertiary); }
+        .bg-themed-card { background-color: var(--bg-card); }
+        .text-themed-primary { color: var(--text-primary); }
+        .text-themed-secondary { color: var(--text-secondary); }
+        .text-themed-muted { color: var(--text-muted); }
+        .text-themed-faint { color: var(--text-faint); }
+        .border-themed-primary { border-color: var(--border-primary); }
+        .border-themed-secondary { border-color: var(--border-secondary); }
+        .border-hairline { border-color: var(--border-hairline); }
+
+        .shadow-warm {
+            box-shadow: 0 4px 6px -1px rgba(var(--shadow-color), 0.1),
+                        0 2px 4px -1px rgba(var(--shadow-color), 0.06);
+        }
+        .shadow-warm-lg {
+            box-shadow: 0 10px 25px -5px rgba(var(--shadow-color), 0.15),
+                        0 8px 10px -6px rgba(var(--shadow-color), 0.08);
+        }
+        [data-theme="dark"] .shadow-warm-lg {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4),
+                        0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        }
+
+        .theme-toggle {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            border-radius: 10px;
+            background: var(--border-primary);
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            border: none;
+            padding: 0;
+            flex-shrink: 0;
+        }
+        .theme-toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            transition: transform 0.3s ease, background-color 0.3s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        [data-theme="dark"] .theme-toggle { background: var(--accent); }
+        [data-theme="dark"] .theme-toggle::after {
+            transform: translateX(16px);
+            background: var(--bg-primary);
+        }
+
+        .theme-transition {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+
+        .btn-accent {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+        }
+
+        .blot-frame {
+            filter: grayscale(1) contrast(1.05);
+            -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+            mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+        }
+        [data-theme="dark"] .blot-frame { filter: grayscale(1) contrast(1.1) invert(0.92); }
+    </style>
+</head>
+
+<body class="theme-transition">
+
+    <!-- Header -->
+    <header class="h-16 border-b border-themed-primary flex items-center px-6 sm:px-10 theme-transition bg-themed-secondary sticky top-0 z-20 backdrop-blur-sm">
+        <div class="flex items-center gap-3">
+            <img src="/static/logo.svg" alt="Vitreous" class="w-6 h-6">
+            <span class="text-xl font-serif font-semibold text-themed-primary" style="letter-spacing: 0.15em;">Vitreous</span>
+            <span class="hidden sm:inline text-xs text-themed-faint ml-1 tracking-wide">by Mansus</span>
+        </div>
+        <div class="ml-auto flex items-center gap-4 sm:gap-6">
+            <button id="themeToggle" class="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode"></button>
+            <a href="/app"
+               class="btn-accent flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-all text-sm font-semibold shadow-warm hover:shadow-warm-lg">
+                Launch App
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+            </a>
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="relative overflow-hidden border-b border-themed-primary theme-transition bg-themed-primary">
+        <div class="max-w-6xl mx-auto px-6 sm:px-10 py-20 sm:py-28 grid md:grid-cols-2 gap-12 items-center">
+            <div>
+                <p class="section-label mb-4">Western blot densitometry</p>
+                <h1 class="font-serif text-4xl sm:text-5xl font-semibold leading-tight text-themed-primary">
+                    Quantify your blots.<br>Not your patience.
+                </h1>
+                <p class="mt-6 text-base sm:text-lg text-themed-secondary leading-relaxed max-w-md">
+                    Vitreous detects protein bands with a fine-tuned YOLO model and computes
+                    background-corrected, lane-normalized intensity in seconds — no manual box-drawing,
+                    no spreadsheet gymnastics.
+                </p>
+                <div class="mt-9 flex flex-wrap items-center gap-4">
+                    <a href="/app"
+                       class="btn-accent flex items-center gap-2 px-6 py-3.5 text-white rounded-lg transition-all text-sm font-semibold shadow-warm-lg hover:brightness-110">
+                        Launch App
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        </svg>
+                    </a>
+                    <a href="#how-it-works" class="text-sm font-medium text-themed-secondary hover:text-themed-primary transition-colors">
+                        See how it works →
+                    </a>
+                </div>
+            </div>
+            <div class="relative">
+                <div class="rounded-2xl border border-hairline shadow-warm-lg overflow-hidden bg-themed-card p-6">
+                    <img src="/static/initial.png" alt="Detected western blot bands" class="blot-frame w-full rounded-lg">
+                </div>
+                <div class="absolute -bottom-4 -left-4 hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-warm-lg border border-hairline bg-themed-card">
+                    <span class="w-2 h-2 rounded-full" style="background-color: var(--accent);"></span>
+                    <span class="text-xs font-medium text-themed-secondary">Bands detected automatically</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="max-w-6xl mx-auto px-6 sm:px-10 py-20 sm:py-24">
+        <p class="section-label text-center mb-3">What it does</p>
+        <h2 class="font-serif text-3xl sm:text-4xl font-semibold text-center text-themed-primary mb-16">
+            Everything between upload and CSV
+        </h2>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="p-6 rounded-xl border border-hairline shadow-warm theme-transition bg-themed-card">
+                <h3 class="font-serif text-lg font-semibold text-themed-primary mb-2">Automated Band Detection</h3>
+                <p class="text-sm text-themed-muted leading-relaxed">ML-powered detection of protein bands using a fine-tuned YOLO model — no manual selection.</p>
+            </div>
+            <div class="p-6 rounded-xl border border-hairline shadow-warm theme-transition bg-themed-card">
+                <h3 class="font-serif text-lg font-semibold text-themed-primary mb-2">Row Grouping</h3>
+                <p class="text-sm text-themed-muted leading-relaxed">Detected bands are automatically organized into logical rows for multi-lane comparisons.</p>
+            </div>
+            <div class="p-6 rounded-xl border border-hairline shadow-warm theme-transition bg-themed-card">
+                <h3 class="font-serif text-lg font-semibold text-themed-primary mb-2">Densitometry Metrics</h3>
+                <p class="text-sm text-themed-muted leading-relaxed">Integrated density, edge-based background correction, and lane-to-lane relative intensity.</p>
+            </div>
+            <div class="p-6 rounded-xl border border-hairline shadow-warm theme-transition bg-themed-card">
+                <h3 class="font-serif text-lg font-semibold text-themed-primary mb-2">Interactive Visualization</h3>
+                <p class="text-sm text-themed-muted leading-relaxed">Real-time intensity profiles with adjustable detection thresholds, right on the image.</p>
+            </div>
+            <div class="p-6 rounded-xl border border-hairline shadow-warm theme-transition bg-themed-card">
+                <h3 class="font-serif text-lg font-semibold text-themed-primary mb-2">Sample Gallery</h3>
+                <p class="text-sm text-themed-muted leading-relaxed">A built-in collection of western blot images to try the tool before uploading your own.</p>
+            </div>
+            <div class="p-6 rounded-xl border border-hairline shadow-warm theme-transition bg-themed-card">
+                <h3 class="font-serif text-lg font-semibold text-themed-primary mb-2">CSV Export</h3>
+                <p class="text-sm text-themed-muted leading-relaxed">Export band measurements in one click for downstream statistical analysis.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it works -->
+    <section id="how-it-works" class="border-t border-b border-themed-primary theme-transition bg-themed-secondary">
+        <div class="max-w-5xl mx-auto px-6 sm:px-10 py-20 sm:py-24">
+            <p class="section-label text-center mb-3">Methodology</p>
+            <h2 class="font-serif text-3xl sm:text-4xl font-semibold text-center text-themed-primary mb-16">
+                Four steps, no black box
+            </h2>
+            <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div class="text-center sm:text-left">
+                    <span class="font-serif text-4xl font-semibold" style="color: var(--accent);">01</span>
+                    <h3 class="font-serif text-lg font-semibold text-themed-primary mt-2 mb-1">Detection</h3>
+                    <p class="text-sm text-themed-muted leading-relaxed">YOLO-based object detection identifies protein bands in the blot image.</p>
+                </div>
+                <div class="text-center sm:text-left">
+                    <span class="font-serif text-4xl font-semibold" style="color: var(--accent);">02</span>
+                    <h3 class="font-serif text-lg font-semibold text-themed-primary mt-2 mb-1">Row Grouping</h3>
+                    <p class="text-sm text-themed-muted leading-relaxed">Bands are clustered into rows based on Y-coordinate proximity.</p>
+                </div>
+                <div class="text-center sm:text-left">
+                    <span class="font-serif text-4xl font-semibold" style="color: var(--accent);">03</span>
+                    <h3 class="font-serif text-lg font-semibold text-themed-primary mt-2 mb-1">Densitometry</h3>
+                    <p class="text-sm text-themed-muted leading-relaxed">Intensity is computed per band with edge-based background correction.</p>
+                </div>
+                <div class="text-center sm:text-left">
+                    <span class="font-serif text-4xl font-semibold" style="color: var(--accent);">04</span>
+                    <h3 class="font-serif text-lg font-semibold text-themed-primary mt-2 mb-1">Normalization</h3>
+                    <p class="text-sm text-themed-muted leading-relaxed">Relative intensities are normalized to each row's maximum for comparison.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section class="max-w-4xl mx-auto px-6 sm:px-10 py-20 sm:py-28 text-center">
+        <h2 class="font-serif text-3xl sm:text-4xl font-semibold text-themed-primary mb-4">
+            Your next blot is one upload away.
+        </h2>
+        <p class="text-themed-muted mb-9 max-w-lg mx-auto">
+            No account, no setup. Drop in an image or try a sample from the gallery.
+        </p>
+        <a href="/app"
+           class="btn-accent inline-flex items-center gap-2 px-7 py-3.5 text-white rounded-lg transition-all text-sm font-semibold shadow-warm-lg hover:brightness-110">
+            Launch App
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+        </a>
+    </section>
+
+    <!-- Footer -->
+    <footer class="h-14 border-t border-themed-hairline flex items-center justify-between px-6 sm:px-10 text-xs theme-transition bg-themed-secondary">
+        <span class="text-themed-faint font-serif" style="font-variant: small-caps; letter-spacing: 0.1em;">Mansus</span>
+        <span class="text-themed-faint">v0.1.0</span>
+    </footer>
+
+    <script>
+        (function () {
+            const themeToggle = document.getElementById('themeToggle');
+
+            function setTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('vitreous-theme', theme);
+            }
+
+            function toggleTheme() {
+                const current = document.documentElement.getAttribute('data-theme') || 'light';
+                setTheme(current === 'dark' ? 'light' : 'dark');
+            }
+
+            const savedTheme = localStorage.getItem('vitreous-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            setTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+
+            if (themeToggle) {
+                themeToggle.addEventListener('click', toggleTheme);
+            }
+        })();
+    </script>
+</body>
+
+</html>
