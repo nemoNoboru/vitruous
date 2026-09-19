@@ -17,6 +17,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Download model weights
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p output
+          gh release download model-weights-v1 --repo nemoNoboru/vitruous --dir output --clobber
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
